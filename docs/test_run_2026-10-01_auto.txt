@@ -1,0 +1,140 @@
+# Automated test run - 2026-10-01 (form intake, before the post-approval re-check fix)
+
+## n8n executions
+#3 mode=webhook status=success start=2026-10-01 02:03:00.163 stop=2026-10-01 02:03:00.322 last_node=Process each invoice
+#4 mode=integrated status=success start=2026-10-01 02:03:00.288 stop=2026-10-01 02:03:11.372 last_node=Result: sent back to supplier
+   RESULT: {"invoice_id": "INV-20261001-030300-DQFS", "status": "rejected_invalid", "route": "supplier_correction", "reasons": ["Unreadable file: connect ECONNREFUSED ::1:8000"], "email_sent_to": "kharratok@gmail.com"}
+#6 mode=webhook status=success start=2026-10-01 02:07:19.967 stop=2026-10-01 02:07:20.148 last_node=Process each invoice
+#7 mode=integrated status=success start=2026-10-01 02:07:20.109 stop=2026-10-01 02:07:55.323 last_node=Result: recorded
+   RESULT: {"invoice_id": "INV-20261001-030720-64KE", "status": "recorded", "route": "auto", "gross_amount": 1190, "archive_link": "https://drive.google.com/file/d/1RY2GtVZc1rsoy6VwxTA1KIAtbVZ_d-6T/view?usp=drivesdk", "payment_status": "scheduled", "kpi": {"Invoices processed": 1, "Invoices recorded": 1, "Touchless (route = auto)": 1, "Approved by manager": 0, "Sent back to supplier": 0, "Rejected by manager": 0, "Touchless rate %": 100, "Exception rate %": 0, "Average processing time (s, touchless)": 30, "Average processing time (s, all)": 30, "Total amount recorded (TND)": 1190, "Payments scheduled (simulated)": 1}}
+#8 mode=webhook status=success start=2026-10-01 02:08:09.094 stop=2026-10-01 02:08:09.261 last_node=Process each invoice
+#9 mode=integrated status=success start=2026-10-01 02:08:09.228 stop=2026-10-01 02:08:24.095 last_node=Result: sent back to supplier
+   RESULT: {"invoice_id": "INV-20261001-030809-GMHM", "status": "rejected_invalid", "route": "supplier_correction", "reasons": ["Totals do not match: 1800 + 342 = 2142.000, but invoice says 2242"], "email_sent_to": "kharratok@gmail.com"}
+#10 mode=webhook status=success start=2026-10-01 02:08:27.974 stop=2026-10-01 02:08:28.127 last_node=Process each invoice
+#11 mode=integrated status=success start=2026-10-01 02:08:28.098 stop=2026-10-01 02:08:42.368 last_node=Result: sent back to supplier
+   RESULT: {"invoice_id": "INV-20261001-030828-6L0N", "status": "rejected_invalid", "route": "supplier_correction", "reasons": ["Unknown supplier: Global Trade SARL (9988776/Z/M/000)", "Missing purchase-order reference"], "email_sent_to": "kharratok@gmail.com"}
+#12 mode=webhook status=success start=2026-10-01 02:08:46.117 stop=2026-10-01 02:08:46.274 last_node=Process each invoice
+#13 mode=integrated status=success start=2026-10-01 02:08:46.244 stop=2026-10-01 02:09:00.856 last_node=Result: sent back to supplier
+   RESULT: {"invoice_id": "INV-20261001-030846-DICW", "status": "rejected_invalid", "route": "supplier_correction", "reasons": ["Duplicate: invoice INV-TS-2026-041 is already recorded", "PO PO-2026-0101 exceeded: 1190.000 already invoiced + 1190 > 1500"], "email_sent_to": "kharratok@gmail.com"}
+#14 mode=webhook status=success start=2026-10-01 02:09:04.770 stop=2026-10-01 02:09:04.920 last_node=Process each invoice
+#15 mode=integrated status=success start=2026-10-01 02:09:04.890 stop=2026-10-01 02:09:23.281 last_node=Result: recorded
+   RESULT: {"invoice_id": "INV-20261001-030904-J4WN", "status": "recorded", "route": "auto", "gross_amount": 2000, "archive_link": "https://drive.google.com/file/d/1t8EwxgLWnxpg_rv780YOih9iLp3_AzUJ/view?usp=drivesdk", "payment_status": "scheduled", "kpi": {"Invoices processed": 5, "Invoices recorded": 2, "Touchless (route = auto)": 2, "Approved by manager": 0, "Sent back to supplier": 3, "Rejected by manager": 0, "Touchless rate %": 40, "Exception rate %": 60, "Average processing time (s, touchless)": 22, "Average processing time (s, all)": 14.6, "Total amount recorded (TND)": 3190, "Payments scheduled (simulated)": 2}}
+#16 mode=webhook status=success start=2026-10-01 02:09:29.299 stop=2026-10-01 02:09:29.446 last_node=Process each invoice
+#17 mode=integrated status=success start=2026-10-01 02:09:29.417 stop=2026-10-01 02:09:44.580 last_node=Result: sent back to supplier
+   RESULT: {"invoice_id": "INV-20261001-030929-NR69", "status": "rejected_invalid", "route": "supplier_correction", "reasons": ["Missing invoice number"], "email_sent_to": "kharratok@gmail.com"}
+#18 mode=webhook status=success start=2026-10-01 02:09:51.299 stop=2026-10-01 02:09:51.479 last_node=Process each invoice
+#19 mode=integrated status=success start=2026-10-01 02:09:51.449 stop=2026-10-01 02:10:14.047 last_node=Result: recorded
+   RESULT: {"invoice_id": "INV-20261001-030951-E4KL", "status": "recorded", "route": "auto", "gross_amount": 238, "archive_link": "https://drive.google.com/file/d/1YN6ICOpyLIUmuz2Dt7ktDlVEYfUWapQK/view?usp=drivesdk", "payment_status": "scheduled", "kpi": {"Invoices processed": 7, "Invoices recorded": 3, "Touchless (route = auto)": 3, "Approved by manager": 0, "Sent back to supplier": 4, "Rejected by manager": 0, "Touchless rate %": 42.9, "Exception rate %": 57.1, "Average processing time (s, touchless)": 20.7, "Average processing time (s, all)": 14.4, "Total amount recorded (TND)": 3428, "Payments scheduled (simulated)": 3}}
+#20 mode=webhook status=success start=2026-10-01 02:10:18.698 stop=2026-10-01 02:10:18.840 last_node=Process each invoice
+#21 mode=integrated status=success start=2026-10-01 02:10:18.812 stop=2026-10-01 02:10:40.282 last_node=Result: recorded
+   RESULT: {"invoice_id": "INV-20261001-031018-9SMJ", "status": "recorded", "route": "auto", "gross_amount": 357, "archive_link": "https://drive.google.com/file/d/1KBojulLJnCjzkMO_a1FvoGegLpaTRSPr/view?usp=drivesdk", "payment_status": "scheduled", "kpi": {"Invoices processed": 8, "Invoices recorded": 4, "Touchless (route = auto)": 4, "Approved by manager": 0, "Sent back to supplier": 4, "Rejected by manager": 0, "Touchless rate %": 50, "Exception rate %": 50, "Average processing time (s, touchless)": 19.8, "Average processing time (s, all)": 14.8, "Total amount recorded (TND)": 3785, "Payments scheduled (simulated)": 4}}
+#22 mode=webhook status=success start=2026-10-01 02:10:46.738 stop=2026-10-01 02:10:46.898 last_node=Process each invoice
+#23 mode=integrated status=success start=2026-10-01 02:10:46.870 stop=2026-10-01 02:10:57.888 last_node=Result: sent back to supplier
+   RESULT: {"invoice_id": "INV-20261001-031046-T0H7", "status": "rejected_invalid", "route": "supplier_correction", "reasons": ["Unreadable file: Corrupt or unreadable PDF: PdfminerException"], "email_sent_to": "kharratok@gmail.com"}
+#25 mode=webhook status=success start=2026-10-01 02:13:10.792 stop=2026-10-01 02:13:10.876 last_node=Process each invoice
+#26 mode=integrated status=success start=2026-10-01 02:13:10.851 stop=2026-10-01 02:14:24.877 last_node=Result: recorded
+   RESULT: {"invoice_id": "INV-20261001-031310-T65R", "status": "recorded", "route": "approved", "gross_amount": 4998, "archive_link": "https://drive.google.com/file/d/1XSrclXzKaeK5iYkxh-SKIEBO0_ySQhuU/view?usp=drivesdk", "payment_status": "scheduled", "kpi": {"Invoices processed": 10, "Invoices recorded": 5, "Touchless (route = auto)": 4, "Approved by manager": 1, "Sent back to supplier": 5, "Rejected by manager": 0, "Touchless rate %": 40, "Exception rate %": 50, "Average processing time (s, touchless)": 19.8, "Average processing time (s, all)": 19.2, "Total amount recorded (TND)": 8783, "Payments scheduled (simulated)": 5}}
+#28 mode=webhook status=success start=2026-10-01 02:13:54.959 stop=2026-10-01 02:13:55.063 last_node=Process each invoice
+#29 mode=integrated status=success start=2026-10-01 02:13:55.035 stop=2026-10-01 02:14:39.667 last_node=Result: recorded
+   RESULT: {"invoice_id": "INV-20261001-031355-916X", "status": "recorded", "route": "approved", "gross_amount": 4998, "archive_link": "https://drive.google.com/file/d/1pyBmc7csm-NVq_zweIsUcUY16W2_TL12/view?usp=drivesdk", "payment_status": "scheduled", "kpi": {"Invoices processed": 11, "Invoices recorded": 6, "Touchless (route = auto)": 4, "Approved by manager": 2, "Sent back to supplier": 5, "Rejected by manager": 0, "Touchless rate %": 36.4, "Exception rate %": 45.5, "Average processing time (s, touchless)": 19.8, "Average processing time (s, all)": 21.1, "Total amount recorded (TND)": 13781, "Payments scheduled (simulated)": 6}}
+
+## Google Sheet content at the end of the run
+== Invoices (11 rows, showing 11)
+invoice_id=INV-20261001-030720-64KE | invoice_number=INV-TS-2026-041 | supplier_name=Tech Supplies SARL | gross_amount=1190 | ai_confidence=0.95 | status=recorded | route=auto | payment_status=scheduled | archive_link=https://drive.google.com/file/d/1RY2GtVZc1rsoy6VwxTA1KIAtbVZ_d-6T/view?usp=drivesdk | received_at=2026-10-01 03:07:20 | processed_at=2026-10-01 03:07:50
+invoice_id=INV-20261001-030809-GMHM | invoice_number=INV-CN-2026-007 | supplier_name=CloudNet Services | gross_amount=2242 | ai_confidence=0.95 | status=rejected_invalid | route=supplier_correction | payment_status=not_payable | rejection_reasons=Totals do not match: 1800 + 342 = 2142.000, but invoice says 2242 | received_at=2026-10-01 03:08:09 | processed_at=2026-10-01 03:08:19
+invoice_id=INV-20261001-030828-6L0N | invoice_number=GT-2026-0931 | supplier_name=Global Trade SARL | gross_amount=535.5 | ai_confidence=1 | status=rejected_invalid | route=supplier_correction | payment_status=not_payable | rejection_reasons=Unknown supplier: Global Trade SARL (9988776/Z/M/000) | Missing purchase-order reference | received_at=2026-10-01 03:08:28 | processed_at=2026-10-01 03:08:37
+invoice_id=INV-20261001-030846-DICW | invoice_number=INV-TS-2026-041 | supplier_name=Tech Supplies SARL | gross_amount=1190 | ai_confidence=0.95 | status=rejected_invalid | route=supplier_correction | payment_status=not_payable | rejection_reasons=Duplicate: invoice INV-TS-2026-041 is already recorded | PO PO-2026-0101 exceeded: 1190.000 already invoiced + 1190 > 1500 | received_at=2026-10-01 03:08:46 | processed_at=2026-10-01 03:08:56
+invoice_id=INV-20261001-030904-J4WN | invoice_number=INV-CN-2026-015 | supplier_name=CloudNet Services | gross_amount=2000 | ai_confidence=0.95 | status=recorded | route=auto | payment_status=scheduled | archive_link=https://drive.google.com/file/d/1t8EwxgLWnxpg_rv780YOih9iLp3_AzUJ/view?usp=drivesdk | received_at=2026-10-01 03:09:04 | processed_at=2026-10-01 03:09:18
+invoice_id=INV-20261001-030929-NR69 | supplier_name=Office Pro SA | gross_amount=297.5 | ai_confidence=0.95 | status=rejected_invalid | route=supplier_correction | payment_status=not_payable | rejection_reasons=Missing invoice number | received_at=2026-10-01 03:09:29 | processed_at=2026-10-01 03:09:39
+invoice_id=INV-20261001-030951-E4KL | invoice_number=INV-OP-2026-131 | supplier_name=Office Pro SA | gross_amount=238 | ai_confidence=0.95 | status=recorded | route=auto | payment_status=scheduled | archive_link=https://drive.google.com/file/d/1YN6ICOpyLIUmuz2Dt7ktDlVEYfUWapQK/view?usp=drivesdk | received_at=2026-10-01 03:09:51 | processed_at=2026-10-01 03:10:09
+invoice_id=INV-20261001-031018-9SMJ | invoice_number=INV-OP-2026-132 | supplier_name=Office Pro SA | gross_amount=357 | ai_confidence=0.95 | status=recorded | route=auto | payment_status=scheduled | archive_link=https://drive.google.com/file/d/1KBojulLJnCjzkMO_a1FvoGegLpaTRSPr/view?usp=drivesdk | received_at=2026-10-01 03:10:18 | processed_at=2026-10-01 03:10:35
+invoice_id=INV-20261001-031046-T0H7 | ai_confidence=0 | status=rejected_invalid | route=supplier_correction | payment_status=not_payable | rejection_reasons=Unreadable file: Corrupt or unreadable PDF: PdfminerException | received_at=2026-10-01 03:10:46 | processed_at=2026-10-01 03:10:52
+invoice_id=INV-20261001-031310-T65R | invoice_number=INV-OP-2026-118 | supplier_name=Office Pro SA | gross_amount=4998 | ai_confidence=0.95 | status=recorded | route=approved | approved_by=kharratok@gmail.com | payment_status=scheduled | archive_link=https://drive.google.com/file/d/1XSrclXzKaeK5iYkxh-SKIEBO0_ySQhuU/view?usp=drivesdk | received_at=2026-10-01 03:13:10 | processed_at=2026-10-01 03:14:18
+invoice_id=INV-20261001-031355-916X | invoice_number=INV-OP-2026-118 | supplier_name=Office Pro SA | gross_amount=4998 | ai_confidence=0.95 | status=recorded | route=approved | approved_by=kharratok@gmail.com | payment_status=scheduled | archive_link=https://drive.google.com/file/d/1pyBmc7csm-NVq_zweIsUcUY16W2_TL12/view?usp=drivesdk | received_at=2026-10-01 03:13:55 | processed_at=2026-10-01 03:14:35
+
+== AuditLog
+2026-10-01 3:07:52 | INV-20261001-030720-64KE | RECEIVED | source=form; file=facture_01_auto_valide.pdf; from=kharratok@gmail.com
+2026-10-01 3:07:52 | INV-20261001-030720-64KE | TEXT_EXTRACTED | method=pdf_text; chars=678
+2026-10-01 3:07:52 | INV-20261001-030720-64KE | AI_EXTRACTED | model=qwen3.5:9b; confidence=0.95; 24.1s
+2026-10-01 3:07:52 | INV-20261001-030720-64KE | RULES_CHECKED | valid; approval_required=false
+2026-10-01 3:07:52 | INV-20261001-030720-64KE | ARCHIVED | https://drive.google.com/file/d/1RY2GtVZc1rsoy6VwxTA1KIAtbVZ_d-6T/view?usp=drivesdk
+2026-10-01 3:07:52 | INV-20261001-030720-64KE | RECORDED_IN_ERP | route=auto; gross=1190 TND
+2026-10-01 3:07:52 | INV-20261001-030720-64KE | PAYMENT_SCHEDULED | SIMULATED - no real payment; due 2026-10-15
+2026-10-01 3:08:21 | INV-20261001-030809-GMHM | RECEIVED | source=form; file=facture_03_total_faux.pdf; from=kharratok@gmail.com
+2026-10-01 3:08:21 | INV-20261001-030809-GMHM | TEXT_EXTRACTED | method=pdf_text; chars=650
+2026-10-01 3:08:21 | INV-20261001-030809-GMHM | AI_EXTRACTED | model=qwen3.5:9b; confidence=0.95; 7.2s
+2026-10-01 3:08:21 | INV-20261001-030809-GMHM | RULES_CHECKED | invalid: Totals do not match: 1800 + 342 = 2142.000, but invoice says 2242
+2026-10-01 3:08:21 | INV-20261001-030809-GMHM | SENT_BACK_TO_SUPPLIER | correction email to kharratok@gmail.com
+2026-10-01 3:08:39 | INV-20261001-030828-6L0N | RECEIVED | source=form; file=facture_04_fournisseur_inconnu.pdf; from=kharratok@gmail.com
+2026-10-01 3:08:39 | INV-20261001-030828-6L0N | TEXT_EXTRACTED | method=pdf_text; chars=597
+2026-10-01 3:08:39 | INV-20261001-030828-6L0N | AI_EXTRACTED | model=qwen3.5:9b; confidence=1; 6.5s
+2026-10-01 3:08:39 | INV-20261001-030828-6L0N | RULES_CHECKED | invalid: Unknown supplier: Global Trade SARL (9988776/Z/M/000) | Missing purchase-order reference
+2026-10-01 3:08:39 | INV-20261001-030828-6L0N | SENT_BACK_TO_SUPPLIER | correction email to kharratok@gmail.com
+2026-10-01 3:08:58 | INV-20261001-030846-DICW | RECEIVED | source=form; file=facture_01_auto_valide.pdf; from=kharratok@gmail.com
+2026-10-01 3:08:58 | INV-20261001-030846-DICW | TEXT_EXTRACTED | method=pdf_text; chars=678
+2026-10-01 3:08:58 | INV-20261001-030846-DICW | AI_EXTRACTED | model=qwen3.5:9b; confidence=0.95; 6.6s
+2026-10-01 3:08:58 | INV-20261001-030846-DICW | RULES_CHECKED | invalid: Duplicate: invoice INV-TS-2026-041 is already recorded | PO PO-2026-0101 exceeded: 1190.000 already invoiced + 1190 > 1500
+2026-10-01 3:08:58 | INV-20261001-030846-DICW | SENT_BACK_TO_SUPPLIER | correction email to kharratok@gmail.com
+2026-10-01 3:09:20 | INV-20261001-030904-J4WN | RECEIVED | source=form; file=facture_05_exactement_2000.pdf; from=kharratok@gmail.com
+2026-10-01 3:09:20 | INV-20261001-030904-J4WN | TEXT_EXTRACTED | method=pdf_text; chars=615
+2026-10-01 3:09:20 | INV-20261001-030904-J4WN | AI_EXTRACTED | model=qwen3.5:9b; confidence=0.95; 6.7s
+2026-10-01 3:09:20 | INV-20261001-030904-J4WN | RULES_CHECKED | valid; approval_required=false
+2026-10-01 3:09:20 | INV-20261001-030904-J4WN | ARCHIVED | https://drive.google.com/file/d/1t8EwxgLWnxpg_rv780YOih9iLp3_AzUJ/view?usp=drivesdk
+2026-10-01 3:09:20 | INV-20261001-030904-J4WN | RECORDED_IN_ERP | route=auto; gross=2000 TND
+2026-10-01 3:09:20 | INV-20261001-030904-J4WN | PAYMENT_SCHEDULED | SIMULATED - no real payment; due 2026-10-25
+2026-10-01 3:09:41 | INV-20261001-030929-NR69 | RECEIVED | source=form; file=facture_06_sans_numero.pdf; from=kharratok@gmail.com
+2026-10-01 3:09:41 | INV-20261001-030929-NR69 | TEXT_EXTRACTED | method=pdf_text; chars=568
+2026-10-01 3:09:41 | INV-20261001-030929-NR69 | AI_EXTRACTED | model=qwen3.5:9b; confidence=0.95; 7.2s
+2026-10-01 3:09:41 | INV-20261001-030929-NR69 | RULES_CHECKED | invalid: Missing invoice number
+2026-10-01 3:09:41 | INV-20261001-030929-NR69 | SENT_BACK_TO_SUPPLIER | correction email to kharratok@gmail.com
+2026-10-01 3:10:11 | INV-20261001-030951-E4KL | RECEIVED | source=form; file=facture_07_scan.png; from=kharratok@gmail.com
+2026-10-01 3:10:11 | INV-20261001-030951-E4KL | TEXT_EXTRACTED | method=image_ocr; chars=582; ocr_confidence=93
+2026-10-01 3:10:11 | INV-20261001-030951-E4KL | AI_EXTRACTED | model=qwen3.5:9b; confidence=0.95; 7.3s
+2026-10-01 3:10:11 | INV-20261001-030951-E4KL | RULES_CHECKED | valid; approval_required=false
+2026-10-01 3:10:11 | INV-20261001-030951-E4KL | ARCHIVED | https://drive.google.com/file/d/1YN6ICOpyLIUmuz2Dt7ktDlVEYfUWapQK/view?usp=drivesdk
+2026-10-01 3:10:11 | INV-20261001-030951-E4KL | RECORDED_IN_ERP | route=auto; gross=238 TND
+2026-10-01 3:10:11 | INV-20261001-030951-E4KL | PAYMENT_SCHEDULED | SIMULATED - no real payment; due 2026-10-27
+2026-10-01 3:10:37 | INV-20261001-031018-9SMJ | RECEIVED | source=form; file=facture_08_scan.pdf; from=kharratok@gmail.com
+2026-10-01 3:10:37 | INV-20261001-031018-9SMJ | TEXT_EXTRACTED | method=pdf_ocr; chars=582; ocr_confidence=93.6
+2026-10-01 3:10:37 | INV-20261001-031018-9SMJ | AI_EXTRACTED | model=qwen3.5:9b; confidence=0.95; 7.1s
+2026-10-01 3:10:37 | INV-20261001-031018-9SMJ | RULES_CHECKED | valid; approval_required=false
+2026-10-01 3:10:37 | INV-20261001-031018-9SMJ | ARCHIVED | https://drive.google.com/file/d/1KBojulLJnCjzkMO_a1FvoGegLpaTRSPr/view?usp=drivesdk
+2026-10-01 3:10:37 | INV-20261001-031018-9SMJ | RECORDED_IN_ERP | route=auto; gross=357 TND
+2026-10-01 3:10:37 | INV-20261001-031018-9SMJ | PAYMENT_SCHEDULED | SIMULATED - no real payment; due 2026-10-28
+2026-10-01 3:10:55 | INV-20261001-031046-T0H7 | RECEIVED | source=form; file=facture_09_corrompue.pdf; from=kharratok@gmail.com
+2026-10-01 3:10:55 | INV-20261001-031046-T0H7 | TEXT_EXTRACTED | FAILED: Corrupt or unreadable PDF: PdfminerException
+2026-10-01 3:10:55 | INV-20261001-031046-T0H7 | AI_EXTRACTED | skipped (no text)
+2026-10-01 3:10:55 | INV-20261001-031046-T0H7 | RULES_CHECKED | invalid: Unreadable file: Corrupt or unreadable PDF: PdfminerException
+2026-10-01 3:10:55 | INV-20261001-031046-T0H7 | SENT_BACK_TO_SUPPLIER | correction email to kharratok@gmail.com
+2026-10-01 3:13:21 | INV-20261001-031310-T65R | RECEIVED | source=form; file=facture_02_approbation.pdf; from=kharratok@gmail.com
+2026-10-01 3:13:21 | INV-20261001-031310-T65R | TEXT_EXTRACTED | method=pdf_text; chars=661
+2026-10-01 3:13:21 | INV-20261001-031310-T65R | AI_EXTRACTED | model=qwen3.5:9b; confidence=0.95; 7.1s
+2026-10-01 3:13:21 | INV-20261001-031310-T65R | RULES_CHECKED | valid; approval_required=true
+2026-10-01 3:13:21 | INV-20261001-031310-T65R | APPROVAL_REQUESTED | gross 4998 TND > 2000; email to kharratok@gmail.com
+2026-10-01 3:14:04 | INV-20261001-031355-916X | RECEIVED | source=form; file=facture_02_approbation.pdf; from=kharratok@gmail.com
+2026-10-01 3:14:04 | INV-20261001-031355-916X | TEXT_EXTRACTED | method=pdf_text; chars=661
+2026-10-01 3:14:04 | INV-20261001-031355-916X | AI_EXTRACTED | model=qwen3.5:9b; confidence=0.95; 6.7s
+2026-10-01 3:14:04 | INV-20261001-031355-916X | RULES_CHECKED | valid; approval_required=true
+2026-10-01 3:14:04 | INV-20261001-031355-916X | APPROVAL_REQUESTED | gross 4998 TND > 2000; email to kharratok@gmail.com
+2026-10-01 3:14:21 | INV-20261001-031310-T65R | APPROVED_BY_MANAGER | by kharratok@gmail.com
+2026-10-01 3:14:21 | INV-20261001-031310-T65R | ARCHIVED | https://drive.google.com/file/d/1XSrclXzKaeK5iYkxh-SKIEBO0_ySQhuU/view?usp=drivesdk
+2026-10-01 3:14:21 | INV-20261001-031310-T65R | RECORDED_IN_ERP | route=approved; gross=4998 TND
+2026-10-01 3:14:21 | INV-20261001-031310-T65R | PAYMENT_SCHEDULED | SIMULATED - no real payment; due 2026-10-18
+2026-10-01 3:14:37 | INV-20261001-031355-916X | APPROVED_BY_MANAGER | by kharratok@gmail.com
+2026-10-01 3:14:37 | INV-20261001-031355-916X | ARCHIVED | https://drive.google.com/file/d/1pyBmc7csm-NVq_zweIsUcUY16W2_TL12/view?usp=drivesdk
+2026-10-01 3:14:37 | INV-20261001-031355-916X | RECORDED_IN_ERP | route=approved; gross=4998 TND
+2026-10-01 3:14:37 | INV-20261001-031355-916X | PAYMENT_SCHEDULED | SIMULATED - no real payment; due 2026-10-18
+
+== KPI
+Invoices processed                         11
+Invoices recorded                          6
+Touchless (route = auto)                   4
+Approved by manager                        2
+Sent back to supplier                      5
+Rejected by manager                        0
+Touchless rate %                           36.4
+Exception rate %                           45.5
+Average processing time (s, touchless)     19.8
+Average processing time (s, all)           21.1
+Total amount recorded (TND)                13781
+Payments scheduled (simulated)             6

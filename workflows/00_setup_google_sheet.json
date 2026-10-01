@@ -1,0 +1,495 @@
+{
+  "id": "invSetupSheet001",
+  "name": "00_setup_google_sheet",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "4883f9ed-8bee-5ebb-baea-4363eaf9fe30",
+      "name": "Run setup once",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "resource": "spreadsheet",
+        "operation": "create",
+        "title": "Invoice Automation DB",
+        "sheetsUi": {
+          "sheetValues": [
+            {
+              "title": "Suppliers"
+            },
+            {
+              "title": "PurchaseOrders"
+            },
+            {
+              "title": "Invoices"
+            },
+            {
+              "title": "AuditLog"
+            },
+            {
+              "title": "KPI"
+            }
+          ]
+        },
+        "options": {
+          "locale": "en_US"
+        }
+      },
+      "id": "b78ca26c-4cb8-54de-8ef1-acc1dec65748",
+      "name": "Sheets: create spreadsheet",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        220,
+        300
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "gsheetInvoice001",
+          "name": "Google Sheets (kharratok)"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Header rows, KPI formulas (COUNTIF / SUMIF / AVERAGE on Invoices) and the \"invoices by status\" chart.\nconst ss = $input.first().json;\nconst id = ss.spreadsheetId;\nconst sheetId = Object.fromEntries((ss.sheets || []).map(s => [s.properties.title, s.properties.sheetId]));\nconst COLS = [\"invoice_id\", \"invoice_number\", \"invoice_date\", \"due_date\", \"supplier_name\", \"supplier_tax_id\", \"supplier_email\", \"po_reference\", \"iban\", \"currency\", \"net_amount\", \"vat_amount\", \"gross_amount\", \"ai_confidence\", \"status\", \"route\", \"rejection_reasons\", \"approved_by\", \"payment_status\", \"file_name\", \"archive_link\", \"received_at\", \"processed_at\"];\nconst col = (name) => String.fromCharCode(65 + COLS.indexOf(name));          // A..W\nconst R = (name) => `Invoices!${col(name)}2:${col(name)}`;\n\nconst kpi = [\n  ['KPI', 'Value'],\n  ['Invoices processed',                  `=COUNTA(${R('invoice_id')})`],\n  ['Invoices recorded',                   `=COUNTIF(${R('status')},\"recorded\")`],\n  ['Touchless (route = auto)',            `=COUNTIF(${R('route')},\"auto\")`],\n  ['Approved by manager',                 `=COUNTIF(${R('route')},\"approved\")`],\n  ['Sent back to supplier',               `=COUNTIF(${R('status')},\"rejected_invalid\")`],\n  ['Rejected by manager',                 `=COUNTIF(${R('status')},\"rejected_manager\")`],\n  ['Touchless rate %',                    '=IF(B2=0,0,ROUND(100*B4/B2,1))'],\n  ['Exception rate %',                    '=IF(B2=0,0,ROUND(100*B6/B2,1))'],\n  ['Average processing time (s, touchless)', `=IFERROR(ROUND(AVERAGE(FILTER((${R('processed_at')}-${R('received_at')})*86400,${R('route')}=\"auto\")),1),0)`],\n  ['Average processing time (s, all)',    `=IFERROR(ROUND(AVERAGE(FILTER((${R('processed_at')}-${R('received_at')})*86400,${R('invoice_id')}<>\"\")),1),0)`],\n  ['Total amount recorded (TND)',         `=SUMIF(${R('status')},\"recorded\",${R('gross_amount')})`],\n  ['Payments scheduled (simulated)',      `=COUNTIF(${R('payment_status')},\"scheduled\")`],\n];\nconst byStatus = [\n  ['Status', 'Invoices'],\n  ['recorded',         `=COUNTIF(${R('status')},D2)`],\n  ['rejected_invalid', `=COUNTIF(${R('status')},D3)`],\n  ['rejected_manager', `=COUNTIF(${R('status')},D4)`],\n];\n\nconst values_body = { valueInputOption: 'USER_ENTERED', data: [\n  { range: 'Suppliers!A1:E1',      values: [['supplier_id', 'name', 'tax_id', 'email', 'iban']] },\n  { range: 'PurchaseOrders!A1:D1', values: [['po_number', 'supplier_tax_id', 'amount_gross', 'status']] },\n  { range: 'Invoices!A1:W1',       values: [COLS] },\n  { range: 'AuditLog!A1:D1',       values: [['timestamp', 'invoice_id', 'event', 'details']] },\n  { range: 'KPI!A1:B13',           values: kpi },\n  { range: 'KPI!D1:E4',            values: byStatus },\n]};\n\nconst bold = (sid, cols) => ({ repeatCell: { range: { sheetId: sid, startRowIndex: 0, endRowIndex: 1, startColumnIndex: 0, endColumnIndex: cols },\n  cell: { userEnteredFormat: { textFormat: { bold: true }, backgroundColor: { red: 0.91, green: 0.93, blue: 0.95 } } },\n  fields: 'userEnteredFormat(textFormat,backgroundColor)' } });\nconst freeze = (sid) => ({ updateSheetProperties: { properties: { sheetId: sid, gridProperties: { frozenRowCount: 1 } }, fields: 'gridProperties.frozenRowCount' } });\nconst dt = (c) => ({ repeatCell: { range: { sheetId: sheetId.Invoices, startRowIndex: 1, startColumnIndex: COLS.indexOf(c), endColumnIndex: COLS.indexOf(c) + 1 },\n  cell: { userEnteredFormat: { numberFormat: { type: 'DATE_TIME', pattern: 'yyyy-mm-dd hh:mm:ss' } } }, fields: 'userEnteredFormat.numberFormat' } });\n\nconst format_body = { requests: [\n  { updateSpreadsheetProperties: { properties: { timeZone: 'Africa/Tunis', locale: 'en_US' }, fields: 'timeZone,locale' } },\n  ...['Suppliers', 'PurchaseOrders', 'Invoices', 'AuditLog', 'KPI'].map(t => freeze(sheetId[t])),\n  bold(sheetId.Suppliers, 5), bold(sheetId.PurchaseOrders, 4), bold(sheetId.Invoices, 23), bold(sheetId.AuditLog, 4), bold(sheetId.KPI, 5),\n  dt('received_at'), dt('processed_at'),\n  { updateDimensionProperties: { range: { sheetId: sheetId.KPI, dimension: 'COLUMNS', startIndex: 0, endIndex: 1 }, properties: { pixelSize: 300 }, fields: 'pixelSize' } },\n  { addChart: { chart: {\n      spec: { title: 'Invoices by status', basicChart: { chartType: 'COLUMN', legendPosition: 'NO_LEGEND',\n        axis: [{ position: 'BOTTOM_AXIS', title: 'Status' }, { position: 'LEFT_AXIS', title: 'Invoices' }],\n        domains: [{ domain: { sourceRange: { sources: [{ sheetId: sheetId.KPI, startRowIndex: 0, endRowIndex: 4, startColumnIndex: 3, endColumnIndex: 4 }] } } }],\n        series:  [{ series: { sourceRange: { sources: [{ sheetId: sheetId.KPI, startRowIndex: 0, endRowIndex: 4, startColumnIndex: 4, endColumnIndex: 5 }] } }, targetAxis: 'LEFT_AXIS' }],\n        headerCount: 1 } },\n      position: { overlayPosition: { anchorCell: { sheetId: sheetId.KPI, rowIndex: 6, columnIndex: 3 }, widthPixels: 520, heightPixels: 320 } } } } },\n]};\n\nreturn [{ json: { spreadsheetId: id, spreadsheetUrl: ss.spreadsheetUrl, values_body, format_body } }];"
+      },
+      "id": "c278968a-7f77-5b5a-a709-874f32ffdf2c",
+      "name": "Build headers, KPI & chart",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://sheets.googleapis.com/v4/spreadsheets/{{ $json.spreadsheetId }}/values:batchUpdate",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.values_body) }}",
+        "options": {
+          "timeout": 600000
+        },
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleSheetsOAuth2Api"
+      },
+      "id": "6b7801fa-f9cd-5e93-bcb0-aae82b21e792",
+      "name": "Sheets API: headers & KPI formulas",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        660,
+        300
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "gsheetInvoice001",
+          "name": "Google Sheets (kharratok)"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://sheets.googleapis.com/v4/spreadsheets/{{ $('Build headers, KPI & chart').first().json.spreadsheetId }}:batchUpdate",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($('Build headers, KPI & chart').first().json.format_body) }}",
+        "options": {
+          "timeout": 600000
+        },
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleSheetsOAuth2Api"
+      },
+      "id": "4d2564be-cbe4-54cf-adf7-992a3b457747",
+      "name": "Sheets API: format & chart",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        880,
+        300
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "gsheetInvoice001",
+          "name": "Google Sheets (kharratok)"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Demo master data, same as sql/init.sql (fictitious companies). The apostrophe keeps tax IDs as text.\nreturn [\n  { supplier_id: 1, name: 'Tech Supplies SARL', tax_id: \"'1234567/A/M/000\", email: 'billing@techsupplies.example', iban: 'TN59 1000 6035 1835 9847 8831' },\n  { supplier_id: 2, name: 'Office Pro SA',      tax_id: \"'7654321/B/A/000\", email: 'accounts@officepro.example',   iban: 'TN59 0800 1000 0123 4567 8910' },\n  { supplier_id: 3, name: 'CloudNet Services',  tax_id: \"'1122334/C/M/000\", email: 'finance@cloudnet.example',     iban: 'TN59 2500 7000 0000 1122 3344' },\n].map(json => ({ json }));"
+      },
+      "id": "d5ae7026-3bfd-586d-a193-9bdedb66ac9a",
+      "name": "Seed suppliers",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        300
+      ],
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "={{ $('Build headers, KPI & chart').first().json.spreadsheetId }}",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Suppliers",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {
+          "cellFormat": "USER_ENTERED"
+        }
+      },
+      "id": "ffbbf2ca-5b81-5356-bf08-ced4d642520e",
+      "name": "Suppliers: append rows",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        1320,
+        300
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "gsheetInvoice001",
+          "name": "Google Sheets (kharratok)"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "return [\n  { po_number: 'PO-2026-0101', supplier_tax_id: \"'1234567/A/M/000\", amount_gross: 1500, status: 'open' },\n  { po_number: 'PO-2026-0102', supplier_tax_id: \"'7654321/B/A/000\", amount_gross: 6000, status: 'open' },\n  { po_number: 'PO-2026-0103', supplier_tax_id: \"'1122334/C/M/000\", amount_gross: 2500, status: 'open' },\n].map(json => ({ json }));"
+      },
+      "id": "03d8ef7b-2b62-5cc0-98d3-e292bb519381",
+      "name": "Seed purchase orders",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1540,
+        300
+      ],
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "={{ $('Build headers, KPI & chart').first().json.spreadsheetId }}",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "PurchaseOrders",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {
+          "cellFormat": "USER_ENTERED"
+        }
+      },
+      "id": "d1934e3f-faee-5d67-84b9-4fb1cac93693",
+      "name": "PurchaseOrders: append rows",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        1760,
+        300
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "gsheetInvoice001",
+          "name": "Google Sheets (kharratok)"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "folder",
+        "name": "Invoice Archive",
+        "driveId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "My Drive"
+        },
+        "folderId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "root",
+          "cachedResultName": "/ (Root folder)"
+        },
+        "options": {}
+      },
+      "id": "2088cd87-a585-5b17-b162-1d0ae9614d81",
+      "name": "Drive: create folder \"Invoice Archive\"",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        1980,
+        300
+      ],
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "gdriveInvoice001",
+          "name": "Google Drive (kharratok)"
+        }
+      },
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "resource": "label",
+        "operation": "create",
+        "name": "INVOICE_AUTOMATION",
+        "options": {}
+      },
+      "id": "9239cc14-18cf-5b5c-a964-92279c2160c4",
+      "name": "Gmail: create label",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        2200,
+        300
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "gmailInvoice0001",
+          "name": "Gmail (kharratok)"
+        }
+      },
+      "executeOnce": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "resource": "label",
+        "operation": "getAll",
+        "returnAll": true
+      },
+      "id": "187651d6-caca-54ee-bf71-088c407e0ba7",
+      "name": "Gmail: list labels",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        2420,
+        300
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "gmailInvoice0001",
+          "name": "Gmail (kharratok)"
+        }
+      },
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// IDs to copy into .env (GOOGLE_SHEET_ID, GOOGLE_DRIVE_FOLDER_ID, GMAIL_LABEL_ID).\nconst ss = $('Build headers, KPI & chart').first().json;\nconst folder = $('Drive: create folder \"Invoice Archive\"').first().json;\nconst label = $('Gmail: list labels').all().map(i => i.json).find(l => l.name === 'INVOICE_AUTOMATION');\nreturn [{ json: {\n  GOOGLE_SHEET_ID: ss.spreadsheetId, sheet_url: ss.spreadsheetUrl,\n  GOOGLE_DRIVE_FOLDER_ID: folder.id, folder_url: `https://drive.google.com/drive/folders/${folder.id}`,\n  GMAIL_LABEL_ID: label ? label.id : null,\n}}];"
+      },
+      "id": "54d77427-674e-5991-99c7-7df81f544163",
+      "name": "Setup summary",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2640,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## 00 - One-time setup\nCreates the Google Sheet **Invoice Automation DB** (tabs, headers, demo suppliers & POs, KPI formulas + chart), the Drive folder **Invoice Archive** and the Gmail label **INVOICE_AUTOMATION**.\n\nRun it **once**, then copy the IDs from *Setup summary* into `.env`.",
+        "width": 520,
+        "height": 220,
+        "color": 5
+      },
+      "id": "ade4bafc-471f-575e-a016-e040e2b8b661",
+      "name": "Note setup",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "Run setup once": {
+      "main": [
+        [
+          {
+            "node": "Sheets: create spreadsheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sheets: create spreadsheet": {
+      "main": [
+        [
+          {
+            "node": "Build headers, KPI & chart",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build headers, KPI & chart": {
+      "main": [
+        [
+          {
+            "node": "Sheets API: headers & KPI formulas",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sheets API: headers & KPI formulas": {
+      "main": [
+        [
+          {
+            "node": "Sheets API: format & chart",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sheets API: format & chart": {
+      "main": [
+        [
+          {
+            "node": "Seed suppliers",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Seed suppliers": {
+      "main": [
+        [
+          {
+            "node": "Suppliers: append rows",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Suppliers: append rows": {
+      "main": [
+        [
+          {
+            "node": "Seed purchase orders",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Seed purchase orders": {
+      "main": [
+        [
+          {
+            "node": "PurchaseOrders: append rows",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "PurchaseOrders: append rows": {
+      "main": [
+        [
+          {
+            "node": "Drive: create folder \"Invoice Archive\"",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Drive: create folder \"Invoice Archive\"": {
+      "main": [
+        [
+          {
+            "node": "Gmail: create label",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gmail: create label": {
+      "main": [
+        [
+          {
+            "node": "Gmail: list labels",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gmail: list labels": {
+      "main": [
+        [
+          {
+            "node": "Setup summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "saveDataSuccessExecution": "all",
+    "saveDataErrorExecution": "all",
+    "saveExecutionProgress": true,
+    "callerPolicy": "workflowsFromSameOwner",
+    "timezone": "Africa/Tunis"
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "tags": []
+}

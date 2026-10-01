@@ -1,0 +1,1980 @@
+{
+  "id": "invAutomation001",
+  "name": "01_invoice_automation",
+  "nodes": [
+    {
+      "parameters": {
+        "formTitle": "Dépôt d'une facture fournisseur",
+        "formDescription": "Déposez la facture reçue d'un fournisseur (PDF, PNG ou JPG). Elle est traitée automatiquement en ~30 s : lecture (OCR + IA locale), contrôles, approbation du manager si > 2000 TND, enregistrement et archivage.\n\nRésultat : onglet « Invoices » du Google Sheet « Invoice Automation DB ». Historique : onglet « AuditLog ». Détail nœud par nœud : n8n > Executions.",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "Facture (PDF, PNG ou JPG)",
+              "fieldType": "file",
+              "multipleFiles": false,
+              "acceptFileTypes": ".pdf, .png, .jpg, .jpeg",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Email du fournisseur (facultatif)",
+              "fieldType": "email",
+              "placeholder": "adresse à qui renvoyer la facture si elle doit être corrigée",
+              "requiredField": false
+            }
+          ]
+        },
+        "options": {
+          "path": "invoice-upload",
+          "buttonLabel": "Envoyer la facture",
+          "respondWithOptions": {
+            "values": {
+              "respondWith": "text",
+              "formSubmittedText": "Facture reçue. Elle est traitée automatiquement (~30 s). Voir le résultat dans l'onglet Invoices du Google Sheet."
+            }
+          }
+        }
+      },
+      "id": "28e96d25-2ca6-5e73-b2b4-57056fbfda93",
+      "name": "Invoice upload form",
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2.2,
+      "position": [
+        0,
+        -520
+      ],
+      "webhookId": "6d0f4f2e-3b1a-4f7e-9a51-1c2b3d4e5f60"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Intake 1/2 - n8n form upload -> one invoice item {json: metadata, binary.invoice: file}\nconst item = $input.first();\nconst bin = item.binary || {};\nconst key = Object.keys(bin)[0];\nif (!key) throw new Error('No file received from the form');\nreturn [{ json: {\n  source: 'form',\n  // optional: where to send the correction email (otherwise: supplier email from the master data)\n  supplier_email_intake: item.json['Email du fournisseur (facultatif)'] || null,\n  gmail_message_id: null, email_subject: null,\n  received_at: $now.toFormat('yyyy-MM-dd HH:mm:ss'),\n  file_name: bin[key].fileName || 'invoice',\n}, binary: { invoice: bin[key] } }];"
+      },
+      "id": "1c4b56b5-01a1-5fd5-a2e6-8a0868e832d9",
+      "name": "Normalize: form upload",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        260,
+        -520
+      ]
+    },
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyMinute"
+            }
+          ]
+        },
+        "simple": false,
+        "filters": {
+          "q": "has:attachment {label:INVOICE_AUTOMATION subject:facture subject:factures subject:invoice subject:invoices}",
+          "readStatus": "unread"
+        },
+        "options": {
+          "downloadAttachments": true,
+          "dataPropertyAttachmentsPrefixName": "attachment_"
+        }
+      },
+      "id": "95d85725-5623-548a-93e0-03d1ec7748d9",
+      "name": "Gmail Trigger",
+      "type": "n8n-nodes-base.gmailTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        -300
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "gmailInvoice0001",
+          "name": "Gmail (kharratok)"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Intake 2/2 - Gmail: one invoice item per PDF / PNG / JPG attachment (other attachments are ignored)\nconst OK_MIME = /^(application\\/pdf|image\\/png|image\\/jpe?g)$/i;\nconst OK_EXT = ['pdf', 'png', 'jpg', 'jpeg'];\nconst out = [];\nfor (const item of $input.all()) {\n  const m = item.json;\n  const from = m.from?.value?.[0]?.address || null;\n  for (const b of Object.values(item.binary || {})) {\n    const ext = String(b.fileExtension || (b.fileName || '').split('.').pop() || '').toLowerCase();\n    if (!OK_MIME.test(b.mimeType || '') && !OK_EXT.includes(ext)) continue;\n    out.push({ json: {\n      source: 'gmail',\n      supplier_email_intake: from,\n      gmail_message_id: m.id, email_subject: m.subject || null,\n      received_at: $now.toFormat('yyyy-MM-dd HH:mm:ss'),\n      file_name: b.fileName || 'attachment',\n    }, binary: { invoice: b } });\n  }\n}\nreturn out;"
+      },
+      "id": "b4b71351-46d5-5585-953f-f1c32ea9f3bf",
+      "name": "Normalize: Gmail attachments",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        260,
+        -340
+      ]
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "invAutomation001",
+          "mode": "id"
+        },
+        "mode": "each",
+        "options": {
+          "waitForSubWorkflow": false
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        }
+      },
+      "id": "75e03928-0a0c-5070-b1fe-f55b13b08d05",
+      "name": "Process each invoice",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        540,
+        -440
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "markAsRead",
+        "messageId": "={{ $json.id }}"
+      },
+      "id": "062a8846-7426-5636-94d3-e611be61eb77",
+      "name": "Gmail: mark as read",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        260,
+        -160
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "gmailInvoice0001",
+          "name": "Gmail (kharratok)"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "removeLabels",
+        "messageId": "={{ $('Gmail Trigger').item.json.id }}",
+        "labelIds": [
+          "Label_1"
+        ]
+      },
+      "id": "cb08db48-b641-586b-9f3b-f7a15f8752a3",
+      "name": "Gmail: remove label",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        540,
+        -160
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "gmailInvoice0001",
+          "name": "Gmail (kharratok)"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "inputSource": "passthrough"
+      },
+      "id": "8e23a9fd-d142-5754-be80-fcbf3d14cea4",
+      "name": "When called by intake",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "7e8daa7a-7d85-5a68-ac74-26559e3e0491",
+              "name": "ocr_url",
+              "value": "http://127.0.0.1:8000/extract",
+              "type": "string"
+            },
+            {
+              "id": "eedc766c-eba2-5978-9d9b-2f41c775afb3",
+              "name": "ollama_url",
+              "value": "http://127.0.0.1:11434",
+              "type": "string"
+            },
+            {
+              "id": "d210a69d-382e-5330-b0c5-7ff87366aafa",
+              "name": "ollama_model",
+              "value": "qwen3.5:9b",
+              "type": "string"
+            },
+            {
+              "id": "c458b9f8-f002-50d9-87d2-34a7e74e169d",
+              "name": "ollama_fallback_model",
+              "value": "qwen3:8b",
+              "type": "string"
+            },
+            {
+              "id": "1f227692-1d5a-596d-ad01-a639dea1bb77",
+              "name": "sheet_id",
+              "value": "16wAF8N3rI9wtdrsu0j8uFgStno7MFf3qc9mjPG5exR4",
+              "type": "string"
+            },
+            {
+              "id": "78e148f7-0a9b-5999-a100-037248812dfa",
+              "name": "drive_folder_id",
+              "value": "1Lb0OiFmi6qxASLF9F2dGTTPS-t8RD95v",
+              "type": "string"
+            },
+            {
+              "id": "9531c70d-dea4-5f44-bb01-ec1a7b27a196",
+              "name": "manager_email",
+              "value": "kharratok@gmail.com",
+              "type": "string"
+            },
+            {
+              "id": "5f6dac1f-5e1c-5d9a-84f8-d6f87e617582",
+              "name": "approval_threshold",
+              "value": 2000.0,
+              "type": "number"
+            },
+            {
+              "id": "49fb768f-5a5c-58b0-b975-542fdfb8b47e",
+              "name": "min_confidence",
+              "value": 0.8,
+              "type": "number"
+            },
+            {
+              "id": "fc218766-6cc9-50f0-bf1e-9874bec459f5",
+              "name": "amount_tolerance",
+              "value": 0.01,
+              "type": "number"
+            },
+            {
+              "id": "f73f4e29-5bbb-5b76-823b-965c2f6f6642",
+              "name": "require_po",
+              "value": true,
+              "type": "boolean"
+            },
+            {
+              "id": "293d88fe-8c2f-53f0-a3d7-c488d1375299",
+              "name": "company_tax_id",
+              "value": "5555555/D/A/000",
+              "type": "string"
+            },
+            {
+              "id": "fd05b609-9733-578c-a46d-be5f910aea54",
+              "name": "default_currency",
+              "value": "TND",
+              "type": "string"
+            },
+            {
+              "id": "b595071e-6c52-5244-a07e-025c0239078e",
+              "name": "timezone",
+              "value": "Africa/Tunis",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "83d8630b-343f-5e1c-97de-e7d26124cd82",
+      "name": "Config",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        220,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// One invoice = one execution of this pipeline. Give it a unique ID and keep the original file.\nconst cfg  = $('Config').first().json;\nconst trig = $('When called by intake').first();\nconst j    = trig.json;\nconst bin  = trig.binary?.invoice;\nif (!bin) throw new Error('No invoice file received from the intake');\n\nconst rnd = Math.random().toString(36).slice(2, 6).toUpperCase();\nconst invoice_id = `INV-${$now.setZone(cfg.timezone).toFormat('yyyyMMdd-HHmmss')}-${rnd}`;\nconst file_name = bin.fileName || j.file_name || 'invoice';\nreturn [{ json: {\n  invoice_id,\n  source: j.source || 'unknown',\n  supplier_email_intake: j.supplier_email_intake || null,\n  gmail_message_id: j.gmail_message_id || null,\n  email_subject: j.email_subject || null,\n  received_at: j.received_at || $now.setZone(cfg.timezone).toFormat('yyyy-MM-dd HH:mm:ss'),\n  file_name,\n  file_extension: String(bin.fileExtension || file_name.split('.').pop() || 'bin').toLowerCase(),\n  mime_type: bin.mimeType || null,\n}, binary: { invoice: bin } }];"
+      },
+      "id": "5abe3d03-7fc2-5192-bf6e-92f0fff3964d",
+      "name": "Prepare invoice",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Config').first().json.ocr_url }}",
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "parameterType": "formBinaryData",
+              "name": "file",
+              "inputDataFieldName": "invoice"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 180000,
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "72eae740-c276-532e-a445-36fe9f6f0344",
+      "name": "OCR: extract text",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        660,
+        300
+      ],
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 3000,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Build the Ollama /api/chat request (local LLM only - no invoice data leaves the PC).\nconst cfg = $('Config').first().json;\nconst ocr = $input.first().json;\nconst msg = (e) => typeof e === 'string' ? e : (e?.message || (e ? JSON.stringify(e) : null));\n// OCR service unreachable = OUR technical problem, not the supplier's: fail the execution (visible in n8n).\n// A corrupt / unsupported file comes back as {ok:false, error} (HTTP 422) and is handled as a supplier correction.\nif (ocr.ok === undefined && ocr.error) throw new Error(`OCR service unavailable (${cfg.ocr_url}): ${msg(ocr.error)}`);\nconst ocr_ok = ocr.ok === true && typeof ocr.text === 'string' && ocr.text.trim().length > 0;\nconst ocr_error = ocr_ok ? null : (msg(ocr.error) || 'OCR service returned no text');\n\nconst system = `You are an accounts-payable data-extraction engine. You receive the raw text of ONE supplier invoice\n(from a PDF text layer or from OCR; OCR text may contain small errors). Return ONLY the JSON object defined by the schema.\nRules:\n- supplier_* fields describe the SELLER who issued the invoice (letterhead at the top), never the customer of the\n  \"Bill to\" / \"Client\" / \"Facturé à\" block.\n- supplier_tax_id = the SELLER's Tunisian matricule fiscal (MF), e.g. 1234567/A/M/000. Never the customer's MF.\n- invoice_number = the invoice number exactly as printed (Invoice No, N° facture, Facture n°). If no invoice number is\n  printed, return null. Never invent one and never use the PO reference or a date instead.\n- po_reference = purchase-order reference (PO, BC, bon de commande); null if absent or \"-\".\n- Dates as YYYY-MM-DD.\n- Amounts as plain numbers. A space inside a number is a thousands separator (\"1 190.000\" = 1190). Tunisian dinar\n  amounts have 3 decimals. net_amount = Total HT, vat_amount = total TVA, gross_amount = Total TTC.\n  Copy the totals exactly as printed: do NOT recompute or correct them.\n- currency = ISO code (TND for DT / dinar).\n- If a field is not on the invoice, return null.\n- confidence = your overall confidence (0 to 1) that all key fields were read correctly;\n  list unclear or missing fields in low_confidence_fields.`;\n\nconst S = (d) => ({ type: ['string', 'null'], description: d });\nconst N = (d) => ({ type: ['number', 'null'], description: d });\nconst schema = { type: 'object', properties: {\n  invoice_number:  S('Invoice number as printed'),\n  invoice_date:    S('YYYY-MM-DD'),\n  due_date:        S('YYYY-MM-DD'),\n  supplier_name:   S('Seller company name'),\n  supplier_tax_id: S('Seller matricule fiscal'),\n  supplier_email:  S('Seller email'),\n  po_reference:    S('Purchase-order reference'),\n  iban:            S('Seller IBAN / RIB'),\n  currency:        S('ISO currency code'),\n  net_amount:      N('Total HT'),\n  vat_amount:      N('Total TVA'),\n  gross_amount:    N('Total TTC'),\n  confidence:      { type: 'number', description: '0 to 1' },\n  low_confidence_fields: { type: 'array', items: { type: 'string' } },\n}};\nschema.required = Object.keys(schema.properties);\n\nconst body = (model) => ({\n  model, stream: false, think: false, format: schema, keep_alive: '30m',\n  options: { temperature: 0, num_ctx: 8192 },\n  messages: [\n    { role: 'system', content: system },\n    { role: 'user', content: `Invoice text (extraction method: ${ocr.method}):\\n<<<\\n${String(ocr.text || '').slice(0, 15000)}\\n>>>` },\n  ],\n});\n\nreturn [{ json: {\n  ocr_ok, ocr_error,\n  ocr_method: ocr.method || 'failed',\n  ocr_confidence: ocr.ocr_confidence ?? null,\n  text_chars: ocr.chars || 0,\n  ollama_url: String(cfg.ollama_url).replace(/\\/$/, '') + '/api/chat',\n  body_main: body(cfg.ollama_model),\n  body_fallback: body(cfg.ollama_fallback_model),\n}}];"
+      },
+      "id": "3e9e2e4a-4e11-5a36-9360-f84c2afb623f",
+      "name": "Prepare AI request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        880,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "8e7a12e4-fefd-5ea4-a4c6-aaf2840e4608",
+              "leftValue": "={{ $json.ocr_ok }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "989a07a6-c136-5109-bf9e-4504b95abfd4",
+      "name": "Text extracted?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1100,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.ollama_url }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.body_main) }}",
+        "options": {
+          "timeout": 600000
+        }
+      },
+      "id": "9ce4d866-e4f9-5909-bca5-b010c2c1b813",
+      "name": "Ollama: AI extraction",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1320,
+        180
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Is the main model's answer a usable JSON object? If not, the fallback model is tried.\nconst res = $input.first().json;\nlet data = null, error = null;\nif (res.error) {\n  error = typeof res.error === 'string' ? res.error : (res.error.message || JSON.stringify(res.error));\n} else {\n  try {\n    data = JSON.parse(res?.message?.content ?? '');\n    if (!data || typeof data !== 'object' || Array.isArray(data) || !('gross_amount' in data)) { data = null; error = 'not the expected JSON object'; }\n  } catch (e) { error = 'invalid JSON: ' + String(res?.message?.content).slice(0, 200); }\n}\nreturn [{ json: { ai_ok: data !== null, data, error, llm_seconds: Math.round((res.total_duration || 0) / 1e8) / 10 } }];"
+      },
+      "id": "84da7baa-9afe-5422-9ed9-0a79ccc143a1",
+      "name": "Check AI answer",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1540,
+        180
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "ed26209b-b7ed-5700-aec6-185d332b3715",
+              "leftValue": "={{ $json.ai_ok }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "15c26ff6-560d-5f4d-af89-f771ad08cb94",
+      "name": "AI answer usable?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1760,
+        180
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Prepare AI request').first().json.ollama_url }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($('Prepare AI request').first().json.body_fallback) }}",
+        "options": {
+          "timeout": 600000
+        }
+      },
+      "id": "417a5e95-0040-551e-9438-cb76fc0df2ec",
+      "name": "Ollama: fallback model",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1980,
+        60
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Validate + normalise the LLM JSON before anything uses it (deterministic code, not the LLM).\nconst cfg  = $('Config').first().json;\nconst prep = $('Prepare AI request').first().json;\nconst ocrText = String($('OCR: extract text').first().json.text || '');\nconst fatal = [], warnings = [];\nlet raw = null, model_used = null;\n\nconst parse = (c) => {\n  if (typeof c !== 'string') return null;\n  try { const j = JSON.parse(c.replace(/^\\s*```(json)?/i, '').replace(/```\\s*$/, '')); return j && typeof j === 'object' && !Array.isArray(j) ? j : null; }\n  catch (e) { return null; }\n};\n\nif (!prep.ocr_ok) {\n  fatal.push(`Unreadable file: ${prep.ocr_error}`);\n} else if ($('Ollama: fallback model').isExecuted) {\n  model_used = cfg.ollama_fallback_model;\n  warnings.push(`${cfg.ollama_model} gave no usable JSON (${$('Check AI answer').first().json.error}); fallback ${model_used} used`);\n  const fb = $input.first().json;\n  if (fb.error && !fb.message)   // Ollama unreachable for both models = technical error, not the supplier's fault\n    throw new Error(`Ollama unavailable (${cfg.ollama_url}): ${typeof fb.error === 'string' ? fb.error : fb.error.message}`);\n  raw = parse(fb?.message?.content);\n  if (!raw) fatal.push(`AI extraction failed: no valid JSON from ${cfg.ollama_model} nor ${cfg.ollama_fallback_model}`);\n} else {\n  model_used = cfg.ollama_model;\n  raw = $('Check AI answer').first().json.data;\n}\nraw = raw || {};\n\nconst norm = (s) => String(s ?? '').toUpperCase().replace(/[^A-Z0-9]/g, '');\nconst str = (v) => {\n  if (v === null || v === undefined) return null;\n  const s = String(v).trim();\n  return s === '' || /^(null|none|n\\/a|-)$/i.test(s) ? null : s;\n};\nconst num = (v) => {\n  if (v === null || v === undefined || v === '') return null;\n  if (typeof v === 'number') return Number.isFinite(v) ? v : null;\n  let s = String(v).replace(/[^\\d,.\\-]/g, '');\n  if (s.includes(',') && s.includes('.')) s = s.lastIndexOf(',') > s.lastIndexOf('.') ? s.replace(/\\./g, '').replace(',', '.') : s.replace(/,/g, '');\n  else if (s.includes(',')) s = s.replace(',', '.');\n  const n = parseFloat(s);\n  return Number.isFinite(n) ? n : null;\n};\nconst date = (v, field) => {\n  const s = str(v);\n  if (!s) return null;\n  if (/^\\d{4}-\\d{2}-\\d{2}$/.test(s)) return s;\n  const m = s.match(/^(\\d{1,2})[\\/.\\-](\\d{1,2})[\\/.\\-](\\d{4})$/);\n  if (m) return `${m[3]}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}`;\n  warnings.push(`${field} has an unexpected format (${s})`);\n  return null;\n};\nconst currency = (v) => {\n  const s = (str(v) || '').toUpperCase();\n  if (/^[A-Z]{3}$/.test(s)) return s;\n  if (/DT|DINAR/.test(s)) return 'TND';\n  return cfg.default_currency;\n};\n\nconst lowConf = Array.isArray(raw.low_confidence_fields) ? raw.low_confidence_fields.map(String) : [];\nlet confidence = num(raw.confidence) ?? 0;\nif (confidence > 1 && confidence <= 100) confidence = confidence / 100;\nconfidence = Math.max(0, Math.min(1, confidence));\n\nconst invoice = {\n  invoice_number:  str(raw.invoice_number),\n  invoice_date:    date(raw.invoice_date, 'invoice_date'),\n  due_date:        date(raw.due_date, 'due_date'),\n  supplier_name:   str(raw.supplier_name),\n  supplier_tax_id: str(raw.supplier_tax_id) ? str(raw.supplier_tax_id).toUpperCase().replace(/\\s+/g, '') : null,\n  supplier_email:  str(raw.supplier_email),\n  po_reference:    str(raw.po_reference),\n  iban:            str(raw.iban),\n  currency:        currency(raw.currency),\n  net_amount:      num(raw.net_amount),\n  vat_amount:      num(raw.vat_amount),\n  gross_amount:    num(raw.gross_amount),\n  confidence,\n  low_confidence_fields: lowConf,\n};\n\nif (prep.ocr_ok && model_used) {\n  // Anti-hallucination: identifiers must literally appear in the document text.\n  for (const f of ['invoice_number', 'po_reference', 'supplier_tax_id']) {\n    if (invoice[f] && !norm(ocrText).includes(norm(invoice[f]))) {\n      warnings.push(`${f} \"${invoice[f]}\" not found in the document text - ignored`);\n      invoice[f] = null; lowConf.push(f);\n    }\n  }\n  // Our own (customer) tax ID must never be taken as the supplier's.\n  if (invoice.supplier_tax_id && norm(invoice.supplier_tax_id) === norm(cfg.company_tax_id)) {\n    warnings.push(`AI returned the customer's tax ID ${invoice.supplier_tax_id} as supplier tax ID - ignored`);\n    invoice.supplier_tax_id = null; lowConf.push('supplier_tax_id');\n  }\n}\ninvoice.low_confidence_fields = [...new Set(lowConf)];\n\nreturn [{ json: {\n  invoice, fatal_reasons: fatal, warnings, model_used,\n  ocr_ok: prep.ocr_ok, ocr_error: prep.ocr_error, ocr_method: prep.ocr_method,\n  ocr_confidence: prep.ocr_confidence, text_chars: prep.text_chars,\n  llm_seconds: $('Check AI answer').isExecuted ? $('Check AI answer').first().json.llm_seconds : null,\n}}];"
+      },
+      "id": "2c3296eb-5e3e-5e14-ac14-cc683d525427",
+      "name": "Validate extraction",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2200,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "value": "={{ $('Config').first().json.sheet_id }}",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Suppliers",
+          "mode": "name"
+        },
+        "options": {}
+      },
+      "id": "e9facc9a-69a1-5888-8d80-20903a5e6420",
+      "name": "Get suppliers",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        2420,
+        300
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "gsheetInvoice001",
+          "name": "Google Sheets (kharratok)"
+        }
+      },
+      "alwaysOutputData": true,
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "value": "={{ $('Config').first().json.sheet_id }}",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "PurchaseOrders",
+          "mode": "name"
+        },
+        "options": {}
+      },
+      "id": "095d8fb5-ab6f-5aa8-b303-f73e060341a8",
+      "name": "Get purchase orders",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        2640,
+        300
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "gsheetInvoice001",
+          "name": "Google Sheets (kharratok)"
+        }
+      },
+      "alwaysOutputData": true,
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "value": "={{ $('Config').first().json.sheet_id }}",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Invoices",
+          "mode": "name"
+        },
+        "options": {},
+        "filtersUI": {
+          "values": [
+            {
+              "lookupColumn": "status",
+              "lookupValue": "recorded"
+            }
+          ]
+        }
+      },
+      "id": "0465249e-fa59-5d32-acc2-9b9b26d102ae",
+      "name": "Get recorded invoices",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        2860,
+        300
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "gsheetInvoice001",
+          "name": "Google Sheets (kharratok)"
+        }
+      },
+      "alwaysOutputData": true,
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Business rules = the single \"Valid data?\" decision of the TO-BE workflow (ported from the PostgreSQL version).\nconst cfg = $('Config').first().json;\nconst v   = $('Validate extraction').first().json;\nconst p   = $('Prepare invoice').first().json;\nconst inv = v.invoice;\nconst rows = (name) => $(name).all().map(i => i.json).filter(j => j && Object.keys(j).length > 0);\nconst suppliers = rows('Get suppliers');\nconst pos       = rows('Get purchase orders');\nconst recorded  = rows('Get recorded invoices');\nconst norm = (s) => String(s ?? '').toUpperCase().replace(/[^A-Z0-9]/g, '');\nconst lc   = (s) => String(s ?? '').trim().toLowerCase();\nconst reasons  = [...v.fatal_reasons];\nconst warnings = [...v.warnings];\nlet supplier = null, po = null;\n\nif (reasons.length === 0) {\n  // 1. Mandatory fields\n  const required = { invoice_number: 'invoice number', invoice_date: 'invoice date', supplier_name: 'supplier name',\n                     net_amount: 'net amount (HT)', vat_amount: 'VAT amount', gross_amount: 'gross amount (TTC)' };\n  for (const [k, label] of Object.entries(required)) if (inv[k] === null) reasons.push(`Missing ${label}`);\n\n  // 2. AI confidence score >= threshold\n  if (inv.confidence < cfg.min_confidence)\n    reasons.push(`Low AI confidence (${inv.confidence} < ${cfg.min_confidence})` +\n                 (inv.low_confidence_fields.length ? ` on: ${inv.low_confidence_fields.join(', ')}` : ''));\n\n  // 3. Net + VAT = Gross (tolerance)\n  if (inv.net_amount !== null && inv.vat_amount !== null && inv.gross_amount !== null) {\n    const diff = Math.abs(inv.net_amount + inv.vat_amount - inv.gross_amount);\n    if (diff > cfg.amount_tolerance)\n      reasons.push(`Totals do not match: ${inv.net_amount} + ${inv.vat_amount} = ${(inv.net_amount + inv.vat_amount).toFixed(3)}, but invoice says ${inv.gross_amount}`);\n  }\n\n  // 4. Supplier exists in master data (tax ID first, then exact name)\n  supplier = suppliers.find(s => inv.supplier_tax_id && norm(s.tax_id) === norm(inv.supplier_tax_id))\n          || suppliers.find(s => inv.supplier_name && lc(s.name) === lc(inv.supplier_name)) || null;\n  if (!supplier) reasons.push(`Unknown supplier: ${inv.supplier_name || '?'} (${inv.supplier_tax_id || 'no tax ID'})`);\n  else if (inv.supplier_tax_id && norm(supplier.tax_id) !== norm(inv.supplier_tax_id))\n    reasons.push(`Supplier tax ID ${inv.supplier_tax_id} does not match master data (${supplier.tax_id})`);\n\n  // 5. Duplicate = same supplier + same invoice number already recorded\n  const sameSupplier = (r) => supplier ? norm(r.supplier_tax_id) === norm(supplier.tax_id) : lc(r.supplier_name) === lc(inv.supplier_name);\n  if (inv.invoice_number && recorded.some(r => norm(r.invoice_number) === norm(inv.invoice_number) && sameSupplier(r)))\n    reasons.push(`Duplicate: invoice ${inv.invoice_number} is already recorded`);\n\n  // 6. Purchase order: exists, belongs to the supplier, open, not exceeded (cumulative over recorded invoices)\n  if (!inv.po_reference) {\n    if (cfg.require_po) reasons.push('Missing purchase-order reference');\n  } else {\n    po = pos.find(x => norm(x.po_number) === norm(inv.po_reference)) || null;\n    if (!po) reasons.push(`Unknown purchase order ${inv.po_reference}`);\n    else {\n      if (supplier && norm(po.supplier_tax_id) !== norm(supplier.tax_id)) reasons.push(`PO ${po.po_number} belongs to another supplier`);\n      if (lc(po.status) !== 'open') reasons.push(`PO ${po.po_number} is ${po.status}`);\n      const limit = Number(po.amount_gross);\n      const used = recorded.filter(r => norm(r.po_reference) === norm(po.po_number)).reduce((a, r) => a + (Number(r.gross_amount) || 0), 0);\n      if (inv.gross_amount !== null && used + inv.gross_amount > limit + cfg.amount_tolerance)\n        reasons.push(used > 0 ? `PO ${po.po_number} exceeded: ${used.toFixed(3)} already invoiced + ${inv.gross_amount} > ${limit}`\n                              : `Amount ${inv.gross_amount} exceeds PO ${po.po_number} (${limit})`);\n    }\n  }\n\n  // Not blocking, but logged in the audit trail\n  if (supplier && inv.iban && supplier.iban && norm(inv.iban) !== norm(supplier.iban))\n    warnings.push(`IBAN on invoice (${inv.iban}) differs from master data (${supplier.iban})`);\n}\n\nconst valid = reasons.length === 0;\nreturn [{ json: {\n  valid,\n  approval_required: valid && inv.gross_amount > cfg.approval_threshold,\n  reasons, reasons_text: reasons.join(' | '), warnings,\n  invoice: inv, supplier, purchase_order: po,\n  supplier_email: p.supplier_email_intake || supplier?.email || inv.supplier_email || null,\n}}];"
+      },
+      "id": "49b1c10d-8f68-5668-ad53-cc93db002765",
+      "name": "Business rules check",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3080,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "58700e65-d090-5532-9298-f8d51a70697c",
+              "leftValue": "={{ $json.valid }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "2e0dc4c4-b185-5684-b0ea-eb3d2b1ad328",
+      "name": "Valid data?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        3300,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const cfg = $('Config').first().json;\nconst ts  = () => $now.setZone(cfg.timezone).toFormat('yyyy-MM-dd HH:mm:ss');\n// USER_ENTERED is used so dates/timestamps become real dates for the KPI formulas.\n// txt(): never let extracted text become a formula; id(): force text (keeps leading zeros, no date parsing).\nconst txt = (v) => { if (v === null || v === undefined) return ''; const s = String(v); return /^[=+\\-@]/.test(s) ? \"'\" + s : s; };\nconst id  = (v) => (v === null || v === undefined || v === '') ? '' : \"'\" + String(v);\nconst num = (v) => (typeof v === 'number' && Number.isFinite(v)) ? v : '';\n\nfunction invoiceRow({ status, route, reasons = '', approved_by = '', payment_status = '', archive_link = '' }) {\n  const p = $('Prepare invoice').first().json;\n  const r = $('Business rules check').first().json;\n  const inv = r.invoice, sup = r.supplier;\n  return {\n    invoice_id: id(p.invoice_id), invoice_number: id(inv.invoice_number),\n    invoice_date: txt(inv.invoice_date), due_date: txt(inv.due_date),\n    supplier_name: txt(sup?.name || inv.supplier_name), supplier_tax_id: id(sup?.tax_id || inv.supplier_tax_id),\n    supplier_email: txt(r.supplier_email), po_reference: id(inv.po_reference), iban: id(inv.iban || sup?.iban),\n    currency: txt(inv.currency), net_amount: num(inv.net_amount), vat_amount: num(inv.vat_amount),\n    gross_amount: num(inv.gross_amount), ai_confidence: num(inv.confidence),\n    status, route, rejection_reasons: txt(reasons), approved_by: txt(approved_by), payment_status,\n    file_name: txt(p.file_name), archive_link: txt(archive_link),\n    received_at: p.received_at, processed_at: ts(),\n  };\n}\n\nfunction auditRows(events) {\n  const p = $('Prepare invoice').first().json;\n  return events.map(([event, details]) => ({ json: { timestamp: ts(), invoice_id: id(p.invoice_id), event, details: txt(details) } }));\n}\n\nfunction intakeEvents() {\n  const p = $('Prepare invoice').first().json;\n  const v = $('Validate extraction').first().json;\n  const r = $('Business rules check').first().json;\n  return [\n    ['RECEIVED', `source=${p.source}; file=${p.file_name}; from=${p.supplier_email_intake || '-'}` + (p.gmail_message_id ? `; gmail_id=${p.gmail_message_id}` : '')],\n    ['TEXT_EXTRACTED', v.ocr_ok ? `method=${v.ocr_method}; chars=${v.text_chars}` + (v.ocr_confidence !== null ? `; ocr_confidence=${v.ocr_confidence}` : '') : `FAILED: ${v.ocr_error}`],\n    ['AI_EXTRACTED', v.model_used ? `model=${v.model_used}; confidence=${r.invoice.confidence}` + (v.llm_seconds ? `; ${v.llm_seconds}s` : '') : 'skipped (no text)'],\n    ['RULES_CHECKED', (r.valid ? `valid; approval_required=${r.approval_required}` : `invalid: ${r.reasons_text}`) + (r.warnings.length ? ` | warnings: ${r.warnings.join(' / ')}` : '')],\n  ];\n}\n\nconst r = ($('Re-check after approval').isExecuted ? $('Re-check after approval').first().json : $('Business rules check').first().json);\nreturn [{ json: invoiceRow({ status: 'rejected_invalid', route: 'supplier_correction', reasons: r.reasons_text, payment_status: 'not_payable' }) }];"
+      },
+      "id": "45523f91-2afd-5563-ba2d-36ed9ad6253a",
+      "name": "Build rejected record",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3520,
+        640
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "={{ $('Config').first().json.sheet_id }}",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Invoices",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {
+          "cellFormat": "USER_ENTERED"
+        }
+      },
+      "id": "b9dff158-7a24-5eb4-8f23-e522ece39f5e",
+      "name": "Invoices: append (rejected)",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        3740,
+        640
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "gsheetInvoice001",
+          "name": "Google Sheets (kharratok)"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const cfg = $('Config').first().json;\nconst ts  = () => $now.setZone(cfg.timezone).toFormat('yyyy-MM-dd HH:mm:ss');\n// USER_ENTERED is used so dates/timestamps become real dates for the KPI formulas.\n// txt(): never let extracted text become a formula; id(): force text (keeps leading zeros, no date parsing).\nconst txt = (v) => { if (v === null || v === undefined) return ''; const s = String(v); return /^[=+\\-@]/.test(s) ? \"'\" + s : s; };\nconst id  = (v) => (v === null || v === undefined || v === '') ? '' : \"'\" + String(v);\nconst num = (v) => (typeof v === 'number' && Number.isFinite(v)) ? v : '';\n\nfunction invoiceRow({ status, route, reasons = '', approved_by = '', payment_status = '', archive_link = '' }) {\n  const p = $('Prepare invoice').first().json;\n  const r = $('Business rules check').first().json;\n  const inv = r.invoice, sup = r.supplier;\n  return {\n    invoice_id: id(p.invoice_id), invoice_number: id(inv.invoice_number),\n    invoice_date: txt(inv.invoice_date), due_date: txt(inv.due_date),\n    supplier_name: txt(sup?.name || inv.supplier_name), supplier_tax_id: id(sup?.tax_id || inv.supplier_tax_id),\n    supplier_email: txt(r.supplier_email), po_reference: id(inv.po_reference), iban: id(inv.iban || sup?.iban),\n    currency: txt(inv.currency), net_amount: num(inv.net_amount), vat_amount: num(inv.vat_amount),\n    gross_amount: num(inv.gross_amount), ai_confidence: num(inv.confidence),\n    status, route, rejection_reasons: txt(reasons), approved_by: txt(approved_by), payment_status,\n    file_name: txt(p.file_name), archive_link: txt(archive_link),\n    received_at: p.received_at, processed_at: ts(),\n  };\n}\n\nfunction auditRows(events) {\n  const p = $('Prepare invoice').first().json;\n  return events.map(([event, details]) => ({ json: { timestamp: ts(), invoice_id: id(p.invoice_id), event, details: txt(details) } }));\n}\n\nfunction intakeEvents() {\n  const p = $('Prepare invoice').first().json;\n  const v = $('Validate extraction').first().json;\n  const r = $('Business rules check').first().json;\n  return [\n    ['RECEIVED', `source=${p.source}; file=${p.file_name}; from=${p.supplier_email_intake || '-'}` + (p.gmail_message_id ? `; gmail_id=${p.gmail_message_id}` : '')],\n    ['TEXT_EXTRACTED', v.ocr_ok ? `method=${v.ocr_method}; chars=${v.text_chars}` + (v.ocr_confidence !== null ? `; ocr_confidence=${v.ocr_confidence}` : '') : `FAILED: ${v.ocr_error}`],\n    ['AI_EXTRACTED', v.model_used ? `model=${v.model_used}; confidence=${r.invoice.confidence}` + (v.llm_seconds ? `; ${v.llm_seconds}s` : '') : 'skipped (no text)'],\n    ['RULES_CHECKED', (r.valid ? `valid; approval_required=${r.approval_required}` : `invalid: ${r.reasons_text}`) + (r.warnings.length ? ` | warnings: ${r.warnings.join(' / ')}` : '')],\n  ];\n}\n\nconst r = $('Business rules check').first().json;\nconst recheck = $('Re-check after approval').isExecuted;\nconst events = recheck   // intake events were already logged with APPROVAL_REQUESTED\n  ? [['APPROVED_BY_MANAGER', `by ${cfg.manager_email}`], ['RECHECK_FAILED', $('Re-check after approval').first().json.reasons_text]]\n  : intakeEvents();\nreturn auditRows([...events, ['SENT_BACK_TO_SUPPLIER', `correction email to ${r.supplier_email || '(no email)'}`]]);"
+      },
+      "id": "6e2d9a3e-0ff0-5a9c-adf8-27ab22024460",
+      "name": "Audit rows (rejected)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3960,
+        640
+      ],
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "={{ $('Config').first().json.sheet_id }}",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "AuditLog",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {
+          "cellFormat": "USER_ENTERED"
+        }
+      },
+      "id": "ee723079-1386-5689-a664-670dc08bccf5",
+      "name": "AuditLog: append (rejected)",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        4180,
+        640
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "gsheetInvoice001",
+          "name": "Google Sheets (kharratok)"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $('Business rules check').first().json.supplier_email }}",
+        "subject": "=Facture {{ $('Business rules check').first().json.invoice.invoice_number || '(sans numéro)' }} : correction nécessaire",
+        "emailType": "text",
+        "message": "=Bonjour,\n\nNous n'avons pas pu traiter votre facture {{ $('Business rules check').first().json.invoice.invoice_number || '(sans numéro)' }} (fichier : {{ $('Prepare invoice').first().json.file_name }}) pour la ou les raisons suivantes :\n\n- {{ ($('Re-check after approval').isExecuted ? $('Re-check after approval').first().json : $('Business rules check').first().json).reasons.join('\\n- ') }}\n\nMerci de nous renvoyer une facture corrigée.\n\nRéférence de traitement : {{ $('Prepare invoice').first().json.invoice_id }}\n\nService Comptabilité Fournisseurs (message automatique)",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "id": "34faffbc-4bed-5643-8a5f-7aff54788ba1",
+      "name": "Email supplier: correction needed",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        4400,
+        640
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "gmailInvoice0001",
+          "name": "Gmail (kharratok)"
+        }
+      },
+      "webhookId": "0b7c2a8e-5d4f-4e6a-8b1c-2d3e4f5a6b70",
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const r = $('Business rules check').first().json;\nreturn [{ json: { invoice_id: $('Prepare invoice').first().json.invoice_id, status: 'rejected_invalid',\n  route: 'supplier_correction', reasons: (($('Re-check after approval').isExecuted ? $('Re-check after approval').first().json : $('Business rules check').first().json)).reasons, email_sent_to: r.supplier_email } }];"
+      },
+      "id": "2f7a418c-67f1-557d-acca-7e1dbf389432",
+      "name": "Result: sent back to supplier",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4620,
+        640
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "958f3e8a-5640-50fa-b195-af419f12a1a1",
+              "leftValue": "={{ $json.approval_required }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "b0b78563-5d30-5806-81f5-5af20aa99bcf",
+      "name": "Approval required?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        3520,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const cfg = $('Config').first().json;\nconst ts  = () => $now.setZone(cfg.timezone).toFormat('yyyy-MM-dd HH:mm:ss');\n// USER_ENTERED is used so dates/timestamps become real dates for the KPI formulas.\n// txt(): never let extracted text become a formula; id(): force text (keeps leading zeros, no date parsing).\nconst txt = (v) => { if (v === null || v === undefined) return ''; const s = String(v); return /^[=+\\-@]/.test(s) ? \"'\" + s : s; };\nconst id  = (v) => (v === null || v === undefined || v === '') ? '' : \"'\" + String(v);\nconst num = (v) => (typeof v === 'number' && Number.isFinite(v)) ? v : '';\n\nfunction invoiceRow({ status, route, reasons = '', approved_by = '', payment_status = '', archive_link = '' }) {\n  const p = $('Prepare invoice').first().json;\n  const r = $('Business rules check').first().json;\n  const inv = r.invoice, sup = r.supplier;\n  return {\n    invoice_id: id(p.invoice_id), invoice_number: id(inv.invoice_number),\n    invoice_date: txt(inv.invoice_date), due_date: txt(inv.due_date),\n    supplier_name: txt(sup?.name || inv.supplier_name), supplier_tax_id: id(sup?.tax_id || inv.supplier_tax_id),\n    supplier_email: txt(r.supplier_email), po_reference: id(inv.po_reference), iban: id(inv.iban || sup?.iban),\n    currency: txt(inv.currency), net_amount: num(inv.net_amount), vat_amount: num(inv.vat_amount),\n    gross_amount: num(inv.gross_amount), ai_confidence: num(inv.confidence),\n    status, route, rejection_reasons: txt(reasons), approved_by: txt(approved_by), payment_status,\n    file_name: txt(p.file_name), archive_link: txt(archive_link),\n    received_at: p.received_at, processed_at: ts(),\n  };\n}\n\nfunction auditRows(events) {\n  const p = $('Prepare invoice').first().json;\n  return events.map(([event, details]) => ({ json: { timestamp: ts(), invoice_id: id(p.invoice_id), event, details: txt(details) } }));\n}\n\nfunction intakeEvents() {\n  const p = $('Prepare invoice').first().json;\n  const v = $('Validate extraction').first().json;\n  const r = $('Business rules check').first().json;\n  return [\n    ['RECEIVED', `source=${p.source}; file=${p.file_name}; from=${p.supplier_email_intake || '-'}` + (p.gmail_message_id ? `; gmail_id=${p.gmail_message_id}` : '')],\n    ['TEXT_EXTRACTED', v.ocr_ok ? `method=${v.ocr_method}; chars=${v.text_chars}` + (v.ocr_confidence !== null ? `; ocr_confidence=${v.ocr_confidence}` : '') : `FAILED: ${v.ocr_error}`],\n    ['AI_EXTRACTED', v.model_used ? `model=${v.model_used}; confidence=${r.invoice.confidence}` + (v.llm_seconds ? `; ${v.llm_seconds}s` : '') : 'skipped (no text)'],\n    ['RULES_CHECKED', (r.valid ? `valid; approval_required=${r.approval_required}` : `invalid: ${r.reasons_text}`) + (r.warnings.length ? ` | warnings: ${r.warnings.join(' / ')}` : '')],\n  ];\n}\n\nconst r = $('Business rules check').first().json;\nreturn auditRows([...intakeEvents(),\n  ['APPROVAL_REQUESTED', `gross ${r.invoice.gross_amount} ${r.invoice.currency} > ${cfg.approval_threshold}; email to ${cfg.manager_email}`]]);"
+      },
+      "id": "c51b72b9-0aab-54e3-9946-07eaebf82976",
+      "name": "Audit rows (approval requested)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3740,
+        20
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "={{ $('Config').first().json.sheet_id }}",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "AuditLog",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {
+          "cellFormat": "USER_ENTERED"
+        }
+      },
+      "id": "a260e68f-9392-58c4-8ed2-33c1a50b5a01",
+      "name": "AuditLog: approval requested",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        3960,
+        20
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "gsheetInvoice001",
+          "name": "Google Sheets (kharratok)"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "sendAndWait",
+        "sendTo": "={{ $('Config').first().json.manager_email }}",
+        "subject": "=Approbation requise : facture {{ $('Business rules check').first().json.invoice.invoice_number }} ({{ $('Business rules check').first().json.invoice.gross_amount }} {{ $('Business rules check').first().json.invoice.currency }})",
+        "message": "=Bonjour,\n\nLa facture {{ $('Business rules check').first().json.invoice.invoice_number }} de {{ $('Business rules check').first().json.supplier.name }} dépasse le seuil d'approbation ({{ $('Config').first().json.approval_threshold }} TND).\n\nMontant : HT {{ $('Business rules check').first().json.invoice.net_amount }} + TVA {{ $('Business rules check').first().json.invoice.vat_amount }} = TTC {{ $('Business rules check').first().json.invoice.gross_amount }} {{ $('Business rules check').first().json.invoice.currency }}\nBon de commande : {{ $('Business rules check').first().json.invoice.po_reference }}\nDate : {{ $('Business rules check').first().json.invoice.invoice_date }} - échéance {{ $('Business rules check').first().json.invoice.due_date }}\nRéférence : {{ $('Prepare invoice').first().json.invoice_id }}\n\nTous les contrôles automatiques sont OK. Approuvez-vous cette facture ?",
+        "approvalOptions": {
+          "values": {
+            "approvalType": "double",
+            "approveLabel": "Approve",
+            "disapproveLabel": "Reject"
+          }
+        },
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "id": "4a464830-e39f-55a4-921d-122da09f86d4",
+      "name": "Approval workflow (manager)",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        4180,
+        20
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "gmailInvoice0001",
+          "name": "Gmail (kharratok)"
+        }
+      },
+      "webhookId": "3f2e1d0c-9b8a-4c7d-8e6f-5a4b3c2d1e0f",
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "e4f77674-c2b3-55bd-a414-93b7150f76a7",
+              "leftValue": "={{ $json.data.approved }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "cc274144-f3d6-5911-9b20-f1a1931f9ada",
+      "name": "Approved?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        4400,
+        20
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "value": "={{ $('Config').first().json.sheet_id }}",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Invoices",
+          "mode": "name"
+        },
+        "options": {},
+        "filtersUI": {
+          "values": [
+            {
+              "lookupColumn": "status",
+              "lookupValue": "recorded"
+            }
+          ]
+        }
+      },
+      "id": "3b69845f-079f-54be-8269-499b57017f01",
+      "name": "Re-check: get recorded invoices",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        4620,
+        120
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "gsheetInvoice001",
+          "name": "Google Sheets (kharratok)"
+        }
+      },
+      "alwaysOutputData": true,
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Re-check after approval: while this invoice was waiting for the manager, another copy of it (or another invoice\n// on the same PO) may have been recorded. Duplicate and PO-consumption checks are run again before the ERP write.\nconst cfg = $('Config').first().json;\nconst r = $('Business rules check').first().json;\nconst inv = r.invoice, sup = r.supplier, po = r.purchase_order;\nconst recorded = $input.all().map(i => i.json).filter(j => j && Object.keys(j).length > 0);\nconst norm = (s) => String(s ?? '').toUpperCase().replace(/[^A-Z0-9]/g, '');\nconst reasons = [];\nif (inv.invoice_number && recorded.some(x => norm(x.invoice_number) === norm(inv.invoice_number) && norm(x.supplier_tax_id) === norm(sup.tax_id)))\n  reasons.push(`Duplicate: invoice ${inv.invoice_number} was recorded while this copy was waiting for approval`);\nif (po) {\n  const used = recorded.filter(x => norm(x.po_reference) === norm(po.po_number)).reduce((a, x) => a + (Number(x.gross_amount) || 0), 0);\n  if (used + inv.gross_amount > Number(po.amount_gross) + cfg.amount_tolerance)\n    reasons.push(`PO ${po.po_number} exceeded while waiting for approval: ${used.toFixed(3)} already invoiced + ${inv.gross_amount} > ${po.amount_gross}`);\n}\nreturn [{ json: { valid: reasons.length === 0, reasons, reasons_text: reasons.join(' | ') } }];"
+      },
+      "id": "a78309c7-c3d7-58bb-9293-a0e9c94cc1ee",
+      "name": "Re-check after approval",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4840,
+        120
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "4b830ba0-5350-54a5-81d5-901102c8841d",
+              "leftValue": "={{ $json.valid }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "17fc0a88-66c7-51b2-a558-4cee6db1bee3",
+      "name": "Still valid?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        5060,
+        120
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const cfg = $('Config').first().json;\nconst ts  = () => $now.setZone(cfg.timezone).toFormat('yyyy-MM-dd HH:mm:ss');\n// USER_ENTERED is used so dates/timestamps become real dates for the KPI formulas.\n// txt(): never let extracted text become a formula; id(): force text (keeps leading zeros, no date parsing).\nconst txt = (v) => { if (v === null || v === undefined) return ''; const s = String(v); return /^[=+\\-@]/.test(s) ? \"'\" + s : s; };\nconst id  = (v) => (v === null || v === undefined || v === '') ? '' : \"'\" + String(v);\nconst num = (v) => (typeof v === 'number' && Number.isFinite(v)) ? v : '';\n\nfunction invoiceRow({ status, route, reasons = '', approved_by = '', payment_status = '', archive_link = '' }) {\n  const p = $('Prepare invoice').first().json;\n  const r = $('Business rules check').first().json;\n  const inv = r.invoice, sup = r.supplier;\n  return {\n    invoice_id: id(p.invoice_id), invoice_number: id(inv.invoice_number),\n    invoice_date: txt(inv.invoice_date), due_date: txt(inv.due_date),\n    supplier_name: txt(sup?.name || inv.supplier_name), supplier_tax_id: id(sup?.tax_id || inv.supplier_tax_id),\n    supplier_email: txt(r.supplier_email), po_reference: id(inv.po_reference), iban: id(inv.iban || sup?.iban),\n    currency: txt(inv.currency), net_amount: num(inv.net_amount), vat_amount: num(inv.vat_amount),\n    gross_amount: num(inv.gross_amount), ai_confidence: num(inv.confidence),\n    status, route, rejection_reasons: txt(reasons), approved_by: txt(approved_by), payment_status,\n    file_name: txt(p.file_name), archive_link: txt(archive_link),\n    received_at: p.received_at, processed_at: ts(),\n  };\n}\n\nfunction auditRows(events) {\n  const p = $('Prepare invoice').first().json;\n  return events.map(([event, details]) => ({ json: { timestamp: ts(), invoice_id: id(p.invoice_id), event, details: txt(details) } }));\n}\n\nfunction intakeEvents() {\n  const p = $('Prepare invoice').first().json;\n  const v = $('Validate extraction').first().json;\n  const r = $('Business rules check').first().json;\n  return [\n    ['RECEIVED', `source=${p.source}; file=${p.file_name}; from=${p.supplier_email_intake || '-'}` + (p.gmail_message_id ? `; gmail_id=${p.gmail_message_id}` : '')],\n    ['TEXT_EXTRACTED', v.ocr_ok ? `method=${v.ocr_method}; chars=${v.text_chars}` + (v.ocr_confidence !== null ? `; ocr_confidence=${v.ocr_confidence}` : '') : `FAILED: ${v.ocr_error}`],\n    ['AI_EXTRACTED', v.model_used ? `model=${v.model_used}; confidence=${r.invoice.confidence}` + (v.llm_seconds ? `; ${v.llm_seconds}s` : '') : 'skipped (no text)'],\n    ['RULES_CHECKED', (r.valid ? `valid; approval_required=${r.approval_required}` : `invalid: ${r.reasons_text}`) + (r.warnings.length ? ` | warnings: ${r.warnings.join(' / ')}` : '')],\n  ];\n}\n\nreturn [{ json: invoiceRow({ status: 'rejected_manager', route: 'manager_rejected',\n  reasons: `Rejected by approver (${cfg.manager_email})`, payment_status: 'not_payable' }) }];"
+      },
+      "id": "1896b4c2-6171-5b8b-8416-211cf444d863",
+      "name": "Build manager-rejected record",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4620,
+        -160
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "={{ $('Config').first().json.sheet_id }}",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Invoices",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {
+          "cellFormat": "USER_ENTERED"
+        }
+      },
+      "id": "01413f68-fc03-53ff-ae82-40f2f9b51e67",
+      "name": "Invoices: append (rejected by manager)",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        4840,
+        -160
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "gsheetInvoice001",
+          "name": "Google Sheets (kharratok)"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const cfg = $('Config').first().json;\nconst ts  = () => $now.setZone(cfg.timezone).toFormat('yyyy-MM-dd HH:mm:ss');\n// USER_ENTERED is used so dates/timestamps become real dates for the KPI formulas.\n// txt(): never let extracted text become a formula; id(): force text (keeps leading zeros, no date parsing).\nconst txt = (v) => { if (v === null || v === undefined) return ''; const s = String(v); return /^[=+\\-@]/.test(s) ? \"'\" + s : s; };\nconst id  = (v) => (v === null || v === undefined || v === '') ? '' : \"'\" + String(v);\nconst num = (v) => (typeof v === 'number' && Number.isFinite(v)) ? v : '';\n\nfunction invoiceRow({ status, route, reasons = '', approved_by = '', payment_status = '', archive_link = '' }) {\n  const p = $('Prepare invoice').first().json;\n  const r = $('Business rules check').first().json;\n  const inv = r.invoice, sup = r.supplier;\n  return {\n    invoice_id: id(p.invoice_id), invoice_number: id(inv.invoice_number),\n    invoice_date: txt(inv.invoice_date), due_date: txt(inv.due_date),\n    supplier_name: txt(sup?.name || inv.supplier_name), supplier_tax_id: id(sup?.tax_id || inv.supplier_tax_id),\n    supplier_email: txt(r.supplier_email), po_reference: id(inv.po_reference), iban: id(inv.iban || sup?.iban),\n    currency: txt(inv.currency), net_amount: num(inv.net_amount), vat_amount: num(inv.vat_amount),\n    gross_amount: num(inv.gross_amount), ai_confidence: num(inv.confidence),\n    status, route, rejection_reasons: txt(reasons), approved_by: txt(approved_by), payment_status,\n    file_name: txt(p.file_name), archive_link: txt(archive_link),\n    received_at: p.received_at, processed_at: ts(),\n  };\n}\n\nfunction auditRows(events) {\n  const p = $('Prepare invoice').first().json;\n  return events.map(([event, details]) => ({ json: { timestamp: ts(), invoice_id: id(p.invoice_id), event, details: txt(details) } }));\n}\n\nfunction intakeEvents() {\n  const p = $('Prepare invoice').first().json;\n  const v = $('Validate extraction').first().json;\n  const r = $('Business rules check').first().json;\n  return [\n    ['RECEIVED', `source=${p.source}; file=${p.file_name}; from=${p.supplier_email_intake || '-'}` + (p.gmail_message_id ? `; gmail_id=${p.gmail_message_id}` : '')],\n    ['TEXT_EXTRACTED', v.ocr_ok ? `method=${v.ocr_method}; chars=${v.text_chars}` + (v.ocr_confidence !== null ? `; ocr_confidence=${v.ocr_confidence}` : '') : `FAILED: ${v.ocr_error}`],\n    ['AI_EXTRACTED', v.model_used ? `model=${v.model_used}; confidence=${r.invoice.confidence}` + (v.llm_seconds ? `; ${v.llm_seconds}s` : '') : 'skipped (no text)'],\n    ['RULES_CHECKED', (r.valid ? `valid; approval_required=${r.approval_required}` : `invalid: ${r.reasons_text}`) + (r.warnings.length ? ` | warnings: ${r.warnings.join(' / ')}` : '')],\n  ];\n}\n\nreturn auditRows([['REJECTED_BY_MANAGER', `by ${cfg.manager_email}`]]);"
+      },
+      "id": "8267f100-0233-528d-bf43-29782f743847",
+      "name": "Audit rows (rejected by manager)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        5060,
+        -160
+      ],
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "={{ $('Config').first().json.sheet_id }}",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "AuditLog",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {
+          "cellFormat": "USER_ENTERED"
+        }
+      },
+      "id": "50a047e1-ef19-55cc-b411-5052fc97485d",
+      "name": "AuditLog: append (rejected by manager)",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        5280,
+        -160
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "gsheetInvoice001",
+          "name": "Google Sheets (kharratok)"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{ json: { invoice_id: $('Prepare invoice').first().json.invoice_id, status: 'rejected_manager', route: 'manager_rejected' } }];"
+      },
+      "id": "e5e5be15-6a01-5c52-922f-92a3ae0def2f",
+      "name": "Result: rejected by manager",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        5500,
+        -160
+      ],
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// ERP integration step 1/2: decide the route and prepare a unique archive name (never overwrite).\nconst cfg = $('Config').first().json;\nconst p = $('Prepare invoice').first().json;\nconst r = $('Business rules check').first().json;\nconst approved = $('Approved?').isExecuted;          // only reached through \"Approved? = true\"\nconst safe = (s) => String(s || 'unknown').normalize('NFKD').replace(/[^A-Za-z0-9._-]+/g, '_').replace(/_+/g, '_').slice(0, 40);\nreturn [{ json: {\n  route: approved ? 'approved' : 'auto',\n  approved_by: approved ? cfg.manager_email : '',\n  archive_name: `${p.received_at.slice(0, 10)}_${safe(r.supplier?.name)}_${safe(r.invoice.invoice_number)}_${p.invoice_id}.${p.file_extension}`,\n}, binary: { invoice: $('Prepare invoice').first().binary.invoice } }];"
+      },
+      "id": "7d138aa5-d05a-5116-a581-23e0d19bd9b5",
+      "name": "Build ERP record",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        5280,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "name": "={{ $json.archive_name }}",
+        "driveId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "My Drive"
+        },
+        "folderId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $('Config').first().json.drive_folder_id }}"
+        },
+        "inputDataFieldName": "invoice",
+        "options": {}
+      },
+      "id": "64cb0605-6489-561d-9b13-0884c3827a06",
+      "name": "Archiving: upload to Drive",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        5500,
+        300
+      ],
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "gdriveInvoice001",
+          "name": "Google Drive (kharratok)"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const cfg = $('Config').first().json;\nconst ts  = () => $now.setZone(cfg.timezone).toFormat('yyyy-MM-dd HH:mm:ss');\n// USER_ENTERED is used so dates/timestamps become real dates for the KPI formulas.\n// txt(): never let extracted text become a formula; id(): force text (keeps leading zeros, no date parsing).\nconst txt = (v) => { if (v === null || v === undefined) return ''; const s = String(v); return /^[=+\\-@]/.test(s) ? \"'\" + s : s; };\nconst id  = (v) => (v === null || v === undefined || v === '') ? '' : \"'\" + String(v);\nconst num = (v) => (typeof v === 'number' && Number.isFinite(v)) ? v : '';\n\nfunction invoiceRow({ status, route, reasons = '', approved_by = '', payment_status = '', archive_link = '' }) {\n  const p = $('Prepare invoice').first().json;\n  const r = $('Business rules check').first().json;\n  const inv = r.invoice, sup = r.supplier;\n  return {\n    invoice_id: id(p.invoice_id), invoice_number: id(inv.invoice_number),\n    invoice_date: txt(inv.invoice_date), due_date: txt(inv.due_date),\n    supplier_name: txt(sup?.name || inv.supplier_name), supplier_tax_id: id(sup?.tax_id || inv.supplier_tax_id),\n    supplier_email: txt(r.supplier_email), po_reference: id(inv.po_reference), iban: id(inv.iban || sup?.iban),\n    currency: txt(inv.currency), net_amount: num(inv.net_amount), vat_amount: num(inv.vat_amount),\n    gross_amount: num(inv.gross_amount), ai_confidence: num(inv.confidence),\n    status, route, rejection_reasons: txt(reasons), approved_by: txt(approved_by), payment_status,\n    file_name: txt(p.file_name), archive_link: txt(archive_link),\n    received_at: p.received_at, processed_at: ts(),\n  };\n}\n\nfunction auditRows(events) {\n  const p = $('Prepare invoice').first().json;\n  return events.map(([event, details]) => ({ json: { timestamp: ts(), invoice_id: id(p.invoice_id), event, details: txt(details) } }));\n}\n\nfunction intakeEvents() {\n  const p = $('Prepare invoice').first().json;\n  const v = $('Validate extraction').first().json;\n  const r = $('Business rules check').first().json;\n  return [\n    ['RECEIVED', `source=${p.source}; file=${p.file_name}; from=${p.supplier_email_intake || '-'}` + (p.gmail_message_id ? `; gmail_id=${p.gmail_message_id}` : '')],\n    ['TEXT_EXTRACTED', v.ocr_ok ? `method=${v.ocr_method}; chars=${v.text_chars}` + (v.ocr_confidence !== null ? `; ocr_confidence=${v.ocr_confidence}` : '') : `FAILED: ${v.ocr_error}`],\n    ['AI_EXTRACTED', v.model_used ? `model=${v.model_used}; confidence=${r.invoice.confidence}` + (v.llm_seconds ? `; ${v.llm_seconds}s` : '') : 'skipped (no text)'],\n    ['RULES_CHECKED', (r.valid ? `valid; approval_required=${r.approval_required}` : `invalid: ${r.reasons_text}`) + (r.warnings.length ? ` | warnings: ${r.warnings.join(' / ')}` : '')],\n  ];\n}\n\n// ERP integration step 2/2: the record for the mock ERP (= the Invoices tab).\n// To plug a real ERP, replace the next node (\"ERP integration (mock)\") by an HTTP Request to the ERP API.\nconst erp  = $('Build ERP record').first().json;\nconst file = $input.first().json;                    // Google Drive upload response\nconst link = file.webViewLink || (file.id ? `https://drive.google.com/file/d/${file.id}/view` : '');\n// Payment is SIMULATED: the invoice is only flagged \"scheduled\" - nothing is ever paid.\nreturn [{ json: invoiceRow({ status: 'recorded', route: erp.route, approved_by: erp.approved_by,\n                             payment_status: 'scheduled', archive_link: link }) }];"
+      },
+      "id": "c3fce9fc-6794-5311-96ef-b4dfeee3648a",
+      "name": "Build ERP row",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        5720,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "={{ $('Config').first().json.sheet_id }}",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Invoices",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {
+          "cellFormat": "USER_ENTERED"
+        }
+      },
+      "id": "a4cf841e-5752-58d6-ad54-3f4d4860769d",
+      "name": "ERP integration (mock): append to Invoices",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        5940,
+        300
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "gsheetInvoice001",
+          "name": "Google Sheets (kharratok)"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const cfg = $('Config').first().json;\nconst ts  = () => $now.setZone(cfg.timezone).toFormat('yyyy-MM-dd HH:mm:ss');\n// USER_ENTERED is used so dates/timestamps become real dates for the KPI formulas.\n// txt(): never let extracted text become a formula; id(): force text (keeps leading zeros, no date parsing).\nconst txt = (v) => { if (v === null || v === undefined) return ''; const s = String(v); return /^[=+\\-@]/.test(s) ? \"'\" + s : s; };\nconst id  = (v) => (v === null || v === undefined || v === '') ? '' : \"'\" + String(v);\nconst num = (v) => (typeof v === 'number' && Number.isFinite(v)) ? v : '';\n\nfunction invoiceRow({ status, route, reasons = '', approved_by = '', payment_status = '', archive_link = '' }) {\n  const p = $('Prepare invoice').first().json;\n  const r = $('Business rules check').first().json;\n  const inv = r.invoice, sup = r.supplier;\n  return {\n    invoice_id: id(p.invoice_id), invoice_number: id(inv.invoice_number),\n    invoice_date: txt(inv.invoice_date), due_date: txt(inv.due_date),\n    supplier_name: txt(sup?.name || inv.supplier_name), supplier_tax_id: id(sup?.tax_id || inv.supplier_tax_id),\n    supplier_email: txt(r.supplier_email), po_reference: id(inv.po_reference), iban: id(inv.iban || sup?.iban),\n    currency: txt(inv.currency), net_amount: num(inv.net_amount), vat_amount: num(inv.vat_amount),\n    gross_amount: num(inv.gross_amount), ai_confidence: num(inv.confidence),\n    status, route, rejection_reasons: txt(reasons), approved_by: txt(approved_by), payment_status,\n    file_name: txt(p.file_name), archive_link: txt(archive_link),\n    received_at: p.received_at, processed_at: ts(),\n  };\n}\n\nfunction auditRows(events) {\n  const p = $('Prepare invoice').first().json;\n  return events.map(([event, details]) => ({ json: { timestamp: ts(), invoice_id: id(p.invoice_id), event, details: txt(details) } }));\n}\n\nfunction intakeEvents() {\n  const p = $('Prepare invoice').first().json;\n  const v = $('Validate extraction').first().json;\n  const r = $('Business rules check').first().json;\n  return [\n    ['RECEIVED', `source=${p.source}; file=${p.file_name}; from=${p.supplier_email_intake || '-'}` + (p.gmail_message_id ? `; gmail_id=${p.gmail_message_id}` : '')],\n    ['TEXT_EXTRACTED', v.ocr_ok ? `method=${v.ocr_method}; chars=${v.text_chars}` + (v.ocr_confidence !== null ? `; ocr_confidence=${v.ocr_confidence}` : '') : `FAILED: ${v.ocr_error}`],\n    ['AI_EXTRACTED', v.model_used ? `model=${v.model_used}; confidence=${r.invoice.confidence}` + (v.llm_seconds ? `; ${v.llm_seconds}s` : '') : 'skipped (no text)'],\n    ['RULES_CHECKED', (r.valid ? `valid; approval_required=${r.approval_required}` : `invalid: ${r.reasons_text}`) + (r.warnings.length ? ` | warnings: ${r.warnings.join(' / ')}` : '')],\n  ];\n}\n\nconst erp = $('Build ERP record').first().json;\nconst row = $('Build ERP row').first().json;\nconst events = $('AuditLog: approval requested').isExecuted ? [] : intakeEvents();\nif (erp.route === 'approved') events.push(['APPROVED_BY_MANAGER', `by ${erp.approved_by}`]);\nevents.push(['ARCHIVED', row.archive_link]);\nevents.push(['RECORDED_IN_ERP', `route=${erp.route}; gross=${row.gross_amount} ${row.currency}`]);\nevents.push(['PAYMENT_SCHEDULED', `SIMULATED - no real payment; due ${row.due_date || '?'}`]);\nreturn auditRows(events);"
+      },
+      "id": "ad9ff77a-1df1-57f8-b2a1-94b491ef250e",
+      "name": "Audit rows (recorded)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        6160,
+        300
+      ],
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "={{ $('Config').first().json.sheet_id }}",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "AuditLog",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {
+          "cellFormat": "USER_ENTERED"
+        }
+      },
+      "id": "0e8c1cfd-a256-573d-a35d-2482521865ef",
+      "name": "AuditLog: append (recorded)",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        6380,
+        300
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "gsheetInvoice001",
+          "name": "Google Sheets (kharratok)"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "value": "={{ $('Config').first().json.sheet_id }}",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "KPI",
+          "mode": "name"
+        },
+        "options": {}
+      },
+      "id": "1286a4dd-92e0-5b2b-ad55-f046d97cfe33",
+      "name": "Payment & reporting: read KPI",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        6600,
+        300
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "gsheetInvoice001",
+          "name": "Google Sheets (kharratok)"
+        }
+      },
+      "alwaysOutputData": true,
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const row = $('Build ERP row').first().json;\nconst kpi = Object.fromEntries($input.all().map(i => [i.json.KPI, i.json.Value]).filter(([k]) => k));\nreturn [{ json: { invoice_id: row.invoice_id.replace(/^'/, ''), status: row.status, route: row.route,\n  gross_amount: row.gross_amount, archive_link: row.archive_link, payment_status: row.payment_status, kpi } }];"
+      },
+      "id": "df7961ab-e3b0-5ce8-9948-b772ffab183f",
+      "name": "Result: recorded",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        6820,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## 1. Invoice receipt\nTwo triggers feed the same pipeline:\n- **n8n form** (PDF / PNG / JPG)\n- **Gmail**: unread emails with a PDF/image attachment and the label `INVOICE_AUTOMATION` **or** « facture » / « invoice » in the subject. The email is marked as read and the label removed right after the hand-off, so it is never processed twice.\n\nEach invoice is processed in its own execution (*Process each invoice* calls this same workflow).",
+        "width": 860,
+        "height": 240,
+        "color": 7
+      },
+      "id": "e8c6d571-eaee-56c0-b34a-aececad441a1",
+      "name": "Note intake",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -60,
+        -800
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## 2. IDP / OCR + AI (100 % local)\n- Local OCR service (FastAPI, port 8000): text PDF -> direct text, scan / image -> Tesseract fra+eng\n- Ollama `qwen3.5:9b` (JSON schema, temperature 0, think off); `qwen3:8b` if the answer is unusable\n- **Validate extraction**: JSON checks, normalisation, anti-hallucination (IDs must appear in the text)",
+        "width": 2380,
+        "height": 180,
+        "color": 6
+      },
+      "id": "7084a9b4-39dd-5063-a3e3-35085b77d354",
+      "name": "Note IDP",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -60,
+        -40
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## 3. AI analysis & check (deterministic code)\nMandatory fields, confidence >= 0.8, HT + TVA = TTC (+/-0.01), supplier exists, PO exists / same supplier / open / not exceeded, no duplicate. Lookups = Google Sheets *Get row(s)*.",
+        "width": 900,
+        "height": 180,
+        "color": 4
+      },
+      "id": "e84b3674-b485-5d77-a862-05419d0ef6c2",
+      "name": "Note rules",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        2380,
+        -40
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## 4-8. Outcomes\n- **Invalid** -> `rejected_invalid` + AuditLog + correction email to the supplier\n- **> 2000 TND** -> manager approval by email (Approve / Reject)\n- **ERP (mock)** = append to *Invoices* (`recorded`, route `auto` / `approved`), original archived in Drive *Invoice Archive*, payment **simulated** (`scheduled`), KPI tab = formulas",
+        "width": 1000,
+        "height": 200,
+        "color": 3
+      },
+      "id": "dd68b018-9c35-59ee-8014-c507308aa3e4",
+      "name": "Note outcomes",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        3480,
+        -420
+      ]
+    }
+  ],
+  "connections": {
+    "Invoice upload form": {
+      "main": [
+        [
+          {
+            "node": "Normalize: form upload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize: form upload": {
+      "main": [
+        [
+          {
+            "node": "Process each invoice",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gmail Trigger": {
+      "main": [
+        [
+          {
+            "node": "Normalize: Gmail attachments",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Gmail: mark as read",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize: Gmail attachments": {
+      "main": [
+        [
+          {
+            "node": "Process each invoice",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gmail: mark as read": {
+      "main": [
+        [
+          {
+            "node": "Gmail: remove label",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "When called by intake": {
+      "main": [
+        [
+          {
+            "node": "Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Config": {
+      "main": [
+        [
+          {
+            "node": "Prepare invoice",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare invoice": {
+      "main": [
+        [
+          {
+            "node": "OCR: extract text",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OCR: extract text": {
+      "main": [
+        [
+          {
+            "node": "Prepare AI request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare AI request": {
+      "main": [
+        [
+          {
+            "node": "Text extracted?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Text extracted?": {
+      "main": [
+        [
+          {
+            "node": "Ollama: AI extraction",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Validate extraction",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ollama: AI extraction": {
+      "main": [
+        [
+          {
+            "node": "Check AI answer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check AI answer": {
+      "main": [
+        [
+          {
+            "node": "AI answer usable?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI answer usable?": {
+      "main": [
+        [
+          {
+            "node": "Validate extraction",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Ollama: fallback model",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ollama: fallback model": {
+      "main": [
+        [
+          {
+            "node": "Validate extraction",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate extraction": {
+      "main": [
+        [
+          {
+            "node": "Get suppliers",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get suppliers": {
+      "main": [
+        [
+          {
+            "node": "Get purchase orders",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get purchase orders": {
+      "main": [
+        [
+          {
+            "node": "Get recorded invoices",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get recorded invoices": {
+      "main": [
+        [
+          {
+            "node": "Business rules check",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Business rules check": {
+      "main": [
+        [
+          {
+            "node": "Valid data?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Valid data?": {
+      "main": [
+        [
+          {
+            "node": "Approval required?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build rejected record",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build rejected record": {
+      "main": [
+        [
+          {
+            "node": "Invoices: append (rejected)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Invoices: append (rejected)": {
+      "main": [
+        [
+          {
+            "node": "Audit rows (rejected)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Audit rows (rejected)": {
+      "main": [
+        [
+          {
+            "node": "AuditLog: append (rejected)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AuditLog: append (rejected)": {
+      "main": [
+        [
+          {
+            "node": "Email supplier: correction needed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Email supplier: correction needed": {
+      "main": [
+        [
+          {
+            "node": "Result: sent back to supplier",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Approval required?": {
+      "main": [
+        [
+          {
+            "node": "Audit rows (approval requested)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build ERP record",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Audit rows (approval requested)": {
+      "main": [
+        [
+          {
+            "node": "AuditLog: approval requested",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AuditLog: approval requested": {
+      "main": [
+        [
+          {
+            "node": "Approval workflow (manager)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Approval workflow (manager)": {
+      "main": [
+        [
+          {
+            "node": "Approved?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Approved?": {
+      "main": [
+        [
+          {
+            "node": "Re-check: get recorded invoices",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build manager-rejected record",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Re-check: get recorded invoices": {
+      "main": [
+        [
+          {
+            "node": "Re-check after approval",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Re-check after approval": {
+      "main": [
+        [
+          {
+            "node": "Still valid?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Still valid?": {
+      "main": [
+        [
+          {
+            "node": "Build ERP record",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build rejected record",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build manager-rejected record": {
+      "main": [
+        [
+          {
+            "node": "Invoices: append (rejected by manager)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Invoices: append (rejected by manager)": {
+      "main": [
+        [
+          {
+            "node": "Audit rows (rejected by manager)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Audit rows (rejected by manager)": {
+      "main": [
+        [
+          {
+            "node": "AuditLog: append (rejected by manager)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AuditLog: append (rejected by manager)": {
+      "main": [
+        [
+          {
+            "node": "Result: rejected by manager",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build ERP record": {
+      "main": [
+        [
+          {
+            "node": "Archiving: upload to Drive",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Archiving: upload to Drive": {
+      "main": [
+        [
+          {
+            "node": "Build ERP row",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build ERP row": {
+      "main": [
+        [
+          {
+            "node": "ERP integration (mock): append to Invoices",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ERP integration (mock): append to Invoices": {
+      "main": [
+        [
+          {
+            "node": "Audit rows (recorded)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Audit rows (recorded)": {
+      "main": [
+        [
+          {
+            "node": "AuditLog: append (recorded)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AuditLog: append (recorded)": {
+      "main": [
+        [
+          {
+            "node": "Payment & reporting: read KPI",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Payment & reporting: read KPI": {
+      "main": [
+        [
+          {
+            "node": "Result: recorded",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "saveDataSuccessExecution": "all",
+    "saveDataErrorExecution": "all",
+    "saveExecutionProgress": true,
+    "callerPolicy": "workflowsFromSameOwner",
+    "timezone": "Africa/Tunis"
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "tags": [],
+  "staticData": {
+    "node:Gmail Trigger": {
+      "Gmail Trigger": {
+        "lastTimeChecked": 1790809200
+      }
+    }
+  }
+}

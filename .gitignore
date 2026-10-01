@@ -1,0 +1,10 @@
+# secrets & runtime data - never commit
+.env
+secrets/
+storage/
+# local runtimes
+n8n-runtime/node_modules/
+ocr/.venv/
+ocr/tessdata/
+__pycache__/
+*.pyc

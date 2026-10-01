@@ -1,0 +1,189 @@
+{
+  "id": "invSheetGuide001",
+  "name": "97_sheet_guide",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "03bc293f-0186-557c-86f6-364d1756da6b",
+      "name": "Run",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://sheets.googleapis.com/v4/spreadsheets/16wAF8N3rI9wtdrsu0j8uFgStno7MFf3qc9mjPG5exR4:batchUpdate",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{\"requests\": [{\"addSheet\": {\"properties\": {\"sheetId\": 777, \"title\": \"Guide\", \"index\": 0}}}]}",
+        "options": {
+          "timeout": 600000
+        },
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleSheetsOAuth2Api"
+      },
+      "id": "d6e69b35-d729-58bf-8c6b-eb8352b8bc47",
+      "name": "Add Guide tab",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        220,
+        0
+      ],
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "gsheetInvoice001",
+          "name": "Google Sheets (kharratok)"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://sheets.googleapis.com/v4/spreadsheets/16wAF8N3rI9wtdrsu0j8uFgStno7MFf3qc9mjPG5exR4/values:batchClear",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{\"ranges\": [\"Guide!A1:C200\"]}",
+        "options": {
+          "timeout": 600000
+        },
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleSheetsOAuth2Api"
+      },
+      "id": "c6aec051-4bc2-5bd7-977b-71d6f28787e1",
+      "name": "Clear Guide",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        440,
+        0
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "gsheetInvoice001",
+          "name": "Google Sheets (kharratok)"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "PUT",
+        "url": "https://sheets.googleapis.com/v4/spreadsheets/16wAF8N3rI9wtdrsu0j8uFgStno7MFf3qc9mjPG5exR4/values/Guide!A1:C62?valueInputOption=RAW",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleSheetsOAuth2Api",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{\"values\": [[\"\", \"INVOICE AUTOMATION DB — GUIDE\", \"\"], [\"\", \"Ce classeur est la base de données du prototype : n8n y lit les référentiels (fournisseurs, bons de commande) et y écrit chaque facture traitée. Ne renommez pas les onglets ni les colonnes.\", \"\"], [\"\", \"\", \"\"], [\"\", \"ONGLET\", \"À QUOI IL SERT\"], [\"Suppliers\", \"Référentiel des FOURNISSEURS : les entreprises qui vous vendent des biens ou services et vous envoient des factures. Une facture d'un fournisseur absent de cette liste est rejetée.\", \"rempli par vous (3 fournisseurs de démo)\"], [\"PurchaseOrders\", \"BONS DE COMMANDE (BC) que votre entreprise a passés à un fournisseur. Une facture doit citer un BC existant, du même fournisseur, ouvert, et ne pas dépasser son montant.\", \"rempli par vous (3 BC de démo)\"], [\"Invoices\", \"REGISTRE DES FACTURES = l'ERP simulé : une ligne par facture reçue, quel que soit le résultat (enregistrée, rejetée…).\", \"écrit par n8n\"], [\"AuditLog\", \"JOURNAL : chaque action du robot (réception, lecture, contrôle, email, archivage…) avec l'heure. Permet de suivre ce qui s'est passé pour une facture.\", \"écrit par n8n\"], [\"KPI\", \"TABLEAU DE BORD calculé par formules à partir de Invoices (se met à jour tout seul) + graphique des factures par statut.\", \"formules\"], [\"\", \"\", \"\"], [\"\", \"COLONNES — Suppliers\", \"EXEMPLE\"], [\"supplier_id\", \"numéro interne du fournisseur\", \"1\"], [\"name\", \"raison sociale du fournisseur\", \"Tech Supplies SARL\"], [\"tax_id\", \"matricule fiscal (identifiant fiscal tunisien de l'entreprise)\", \"1234567/A/M/000\"], [\"email\", \"email de facturation du fournisseur\", \"billing@techsupplies.example\"], [\"iban\", \"compte bancaire du fournisseur (pour le payer)\", \"TN59 1000 6035 1835 9847 8831\"], [\"\", \"\", \"\"], [\"\", \"COLONNES — PurchaseOrders\", \"EXEMPLE\"], [\"po_number\", \"numéro du bon de commande\", \"PO-2026-0101\"], [\"supplier_tax_id\", \"matricule fiscal du fournisseur à qui le BC a été passé\", \"1234567/A/M/000\"], [\"amount_gross\", \"montant maximum TTC autorisé (cumul de toutes ses factures)\", \"1500\"], [\"status\", \"open = utilisable ; closed = plus aucune facture acceptée\", \"open\"], [\"\", \"\", \"\"], [\"\", \"COLONNES — Invoices\", \"EXEMPLE\"], [\"invoice_id\", \"référence unique donnée par le robot à chaque traitement (la même dans AuditLog)\", \"INV-20261001-112055-XV2H\"], [\"invoice_number\", \"numéro de facture écrit par le fournisseur\", \"INV-OP-2026-140\"], [\"invoice_date\", \"date de la facture\", \"2026-09-30\"], [\"due_date\", \"date d'échéance (date limite de paiement)\", \"2026-10-30\"], [\"supplier_name\", \"fournisseur (nom du référentiel s'il est reconnu)\", \"Office Pro SA\"], [\"supplier_tax_id\", \"matricule fiscal du fournisseur (vendeur, jamais celui du client)\", \"7654321/B/A/000\"], [\"supplier_email\", \"adresse à qui on écrit en cas de correction : email du formulaire, sinon expéditeur Gmail, sinon référentiel\", \"accounts@officepro.example\"], [\"po_reference\", \"bon de commande cité sur la facture\", \"PO-2026-0102\"], [\"iban\", \"IBAN lu sur la facture\", \"TN59 0800 …\"], [\"currency\", \"devise\", \"TND\"], [\"net_amount\", \"total HT (hors taxes)\", \"100\"], [\"vat_amount\", \"TVA\", \"19\"], [\"gross_amount\", \"total TTC (toutes taxes comprises) = HT + TVA\", \"119\"], [\"ai_confidence\", \"confiance de l'IA dans sa lecture (0 à 1) ; moins de 0,8 = rejet\", \"0.95\"], [\"status\", \"RÉSULTAT : recorded = enregistrée ; rejected_invalid = renvoyée au fournisseur ; rejected_manager = refusée par le manager\", \"recorded\"], [\"route\", \"CHEMIN : auto = sans intervention humaine ; approved = approuvée par le manager (> 2000 TND) ; supplier_correction ; manager_rejected\", \"auto\"], [\"rejection_reasons\", \"motifs du rejet (envoyés au fournisseur)\", \"Totals do not match …\"], [\"approved_by\", \"manager qui a approuvé\", \"kharratok@gmail.com\"], [\"payment_status\", \"scheduled = paiement programmé (SIMULÉ : aucun paiement réel) ; not_payable = facture rejetée\", \"scheduled\"], [\"file_name\", \"nom du fichier reçu (formulaire ou pièce jointe Gmail)\", \"facture_10_gmail.pdf\"], [\"archive_link\", \"lien vers l'original archivé dans Google Drive « Invoice Archive » (factures enregistrées)\", \"https://drive.google.com/…\"], [\"received_at\", \"heure de réception\", \"2026-10-01 11:20:55\"], [\"processed_at\", \"heure de fin de traitement\", \"2026-10-01 11:21:24\"], [\"\", \"\", \"\"], [\"\", \"COLONNES — AuditLog\", \"EXEMPLE\"], [\"timestamp\", \"heure de l'action\", \"\"], [\"invoice_id\", \"facture concernée (même référence que dans Invoices)\", \"\"], [\"event\", \"RECEIVED = reçue · TEXT_EXTRACTED = texte lu (PDF ou OCR) · AI_EXTRACTED = champs lus par l'IA · RULES_CHECKED = contrôles · SENT_BACK_TO_SUPPLIER = email de correction · APPROVAL_REQUESTED · APPROVED_BY_MANAGER · REJECTED_BY_MANAGER · RECHECK_FAILED · ARCHIVED · RECORDED_IN_ERP · PAYMENT_SCHEDULED (simulé)\", \"\"], [\"details\", \"détails de l'action (méthode, modèle IA, motifs, lien…)\", \"\"], [\"\", \"\", \"\"], [\"\", \"RÈGLES DE CONTRÔLE (dans l'ordre)\", \"\"], [\"1\", \"tous les champs obligatoires sont lus (n°, date, fournisseur, HT, TVA, TTC)\", \"\"], [\"2\", \"confiance de l'IA ≥ 0,8\", \"\"], [\"3\", \"HT + TVA = TTC (à 0,01 près)\", \"\"], [\"4\", \"le fournisseur existe dans Suppliers\", \"\"], [\"5\", \"le BC existe, appartient au même fournisseur, est ouvert et n'est pas dépassé\", \"\"], [\"6\", \"pas de doublon (même fournisseur + même n° déjà enregistré)\", \"\"], [\"→\", \"Un contrôle KO : rejected_invalid + email au fournisseur. Tout OK : ≤ 2000 TND enregistrée automatiquement ; > 2000 TND email d'approbation au manager (Approve / Reject).\", \"\"]]}",
+        "options": {}
+      },
+      "id": "6bb55c8f-1f98-52f3-a820-f06c89d9b49c",
+      "name": "Write Guide text",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        660,
+        0
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "gsheetInvoice001",
+          "name": "Google Sheets (kharratok)"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://sheets.googleapis.com/v4/spreadsheets/16wAF8N3rI9wtdrsu0j8uFgStno7MFf3qc9mjPG5exR4:batchUpdate",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{\"requests\": [{\"updateDimensionProperties\": {\"range\": {\"sheetId\": 777, \"dimension\": \"COLUMNS\", \"startIndex\": 0, \"endIndex\": 1}, \"properties\": {\"pixelSize\": 170}, \"fields\": \"pixelSize\"}}, {\"updateDimensionProperties\": {\"range\": {\"sheetId\": 777, \"dimension\": \"COLUMNS\", \"startIndex\": 1, \"endIndex\": 2}, \"properties\": {\"pixelSize\": 760}, \"fields\": \"pixelSize\"}}, {\"updateDimensionProperties\": {\"range\": {\"sheetId\": 777, \"dimension\": \"COLUMNS\", \"startIndex\": 2, \"endIndex\": 3}, \"properties\": {\"pixelSize\": 280}, \"fields\": \"pixelSize\"}}, {\"repeatCell\": {\"range\": {\"sheetId\": 777, \"startRowIndex\": 0, \"endRowIndex\": 62, \"startColumnIndex\": 0, \"endColumnIndex\": 3}, \"cell\": {\"userEnteredFormat\": {\"wrapStrategy\": \"WRAP\", \"verticalAlignment\": \"TOP\"}}, \"fields\": \"userEnteredFormat(wrapStrategy,verticalAlignment)\"}}, {\"repeatCell\": {\"range\": {\"sheetId\": 777, \"startRowIndex\": 0, \"endRowIndex\": 62, \"startColumnIndex\": 0, \"endColumnIndex\": 1}, \"cell\": {\"userEnteredFormat\": {\"textFormat\": {\"bold\": true}}}, \"fields\": \"userEnteredFormat.textFormat.bold\"}}, {\"repeatCell\": {\"range\": {\"sheetId\": 777, \"startRowIndex\": 0, \"endRowIndex\": 1, \"startColumnIndex\": 0, \"endColumnIndex\": 3}, \"cell\": {\"userEnteredFormat\": {\"textFormat\": {\"bold\": true}, \"backgroundColor\": {\"red\": 0.85, \"green\": 0.9, \"blue\": 0.97}}}, \"fields\": \"userEnteredFormat(textFormat,backgroundColor)\"}}, {\"repeatCell\": {\"range\": {\"sheetId\": 777, \"startRowIndex\": 3, \"endRowIndex\": 4, \"startColumnIndex\": 0, \"endColumnIndex\": 3}, \"cell\": {\"userEnteredFormat\": {\"textFormat\": {\"bold\": true}, \"backgroundColor\": {\"red\": 0.85, \"green\": 0.9, \"blue\": 0.97}}}, \"fields\": \"userEnteredFormat(textFormat,backgroundColor)\"}}, {\"repeatCell\": {\"range\": {\"sheetId\": 777, \"startRowIndex\": 10, \"endRowIndex\": 11, \"startColumnIndex\": 0, \"endColumnIndex\": 3}, \"cell\": {\"userEnteredFormat\": {\"textFormat\": {\"bold\": true}, \"backgroundColor\": {\"red\": 0.85, \"green\": 0.9, \"blue\": 0.97}}}, \"fields\": \"userEnteredFormat(textFormat,backgroundColor)\"}}, {\"repeatCell\": {\"range\": {\"sheetId\": 777, \"startRowIndex\": 17, \"endRowIndex\": 18, \"startColumnIndex\": 0, \"endColumnIndex\": 3}, \"cell\": {\"userEnteredFormat\": {\"textFormat\": {\"bold\": true}, \"backgroundColor\": {\"red\": 0.85, \"green\": 0.9, \"blue\": 0.97}}}, \"fields\": \"userEnteredFormat(textFormat,backgroundColor)\"}}, {\"repeatCell\": {\"range\": {\"sheetId\": 777, \"startRowIndex\": 23, \"endRowIndex\": 24, \"startColumnIndex\": 0, \"endColumnIndex\": 3}, \"cell\": {\"userEnteredFormat\": {\"textFormat\": {\"bold\": true}, \"backgroundColor\": {\"red\": 0.85, \"green\": 0.9, \"blue\": 0.97}}}, \"fields\": \"userEnteredFormat(textFormat,backgroundColor)\"}}, {\"repeatCell\": {\"range\": {\"sheetId\": 777, \"startRowIndex\": 48, \"endRowIndex\": 49, \"startColumnIndex\": 0, \"endColumnIndex\": 3}, \"cell\": {\"userEnteredFormat\": {\"textFormat\": {\"bold\": true}, \"backgroundColor\": {\"red\": 0.85, \"green\": 0.9, \"blue\": 0.97}}}, \"fields\": \"userEnteredFormat(textFormat,backgroundColor)\"}}, {\"repeatCell\": {\"range\": {\"sheetId\": 777, \"startRowIndex\": 54, \"endRowIndex\": 55, \"startColumnIndex\": 0, \"endColumnIndex\": 3}, \"cell\": {\"userEnteredFormat\": {\"textFormat\": {\"bold\": true}, \"backgroundColor\": {\"red\": 0.85, \"green\": 0.9, \"blue\": 0.97}}}, \"fields\": \"userEnteredFormat(textFormat,backgroundColor)\"}}]}",
+        "options": {
+          "timeout": 600000
+        },
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleSheetsOAuth2Api"
+      },
+      "id": "9e02dbe7-72c0-5d61-b897-b3239607c71d",
+      "name": "Format Guide",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        880,
+        0
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "gsheetInvoice001",
+          "name": "Google Sheets (kharratok)"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Run": {
+      "main": [
+        [
+          {
+            "node": "Add Guide tab",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Add Guide tab": {
+      "main": [
+        [
+          {
+            "node": "Clear Guide",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Clear Guide": {
+      "main": [
+        [
+          {
+            "node": "Write Guide text",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Write Guide text": {
+      "main": [
+        [
+          {
+            "node": "Format Guide",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "saveDataSuccessExecution": "all",
+    "saveDataErrorExecution": "all",
+    "saveExecutionProgress": true,
+    "callerPolicy": "workflowsFromSameOwner",
+    "timezone": "Africa/Tunis"
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "tags": []
+}

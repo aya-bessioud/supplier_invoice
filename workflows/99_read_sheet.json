@@ -1,0 +1,188 @@
+{
+  "id": "invReadSheet0001",
+  "name": "99_read_sheet",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "03bc293f-0186-557c-86f6-364d1756da6b",
+      "name": "Run",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "value": "16wAF8N3rI9wtdrsu0j8uFgStno7MFf3qc9mjPG5exR4",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Invoices",
+          "mode": "name"
+        },
+        "options": {}
+      },
+      "id": "77f38d53-2652-563a-8687-339f9cf7efe8",
+      "name": "Read Invoices",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        220,
+        0
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "gsheetInvoice001",
+          "name": "Google Sheets (kharratok)"
+        }
+      },
+      "alwaysOutputData": true,
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "value": "16wAF8N3rI9wtdrsu0j8uFgStno7MFf3qc9mjPG5exR4",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "AuditLog",
+          "mode": "name"
+        },
+        "options": {}
+      },
+      "id": "589f620a-5573-5f29-a78c-0ed9b4ed5e19",
+      "name": "Read AuditLog",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        440,
+        0
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "gsheetInvoice001",
+          "name": "Google Sheets (kharratok)"
+        }
+      },
+      "alwaysOutputData": true,
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "value": "16wAF8N3rI9wtdrsu0j8uFgStno7MFf3qc9mjPG5exR4",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "KPI",
+          "mode": "name"
+        },
+        "options": {}
+      },
+      "id": "1bdd0025-1ea8-5675-b476-3dcb567a62a2",
+      "name": "Read KPI",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        660,
+        0
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "gsheetInvoice001",
+          "name": "Google Sheets (kharratok)"
+        }
+      },
+      "alwaysOutputData": true,
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const rows = (n) => $(n).all().map(i => i.json).filter(j => Object.keys(j).length);\nreturn [{ json: { invoices: rows('Read Invoices'), audit: rows('Read AuditLog'), kpi: rows('Read KPI') } }];"
+      },
+      "id": "7722f57b-4e0b-535c-b7a2-65ba05263cf1",
+      "name": "Summary",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        880,
+        0
+      ],
+      "executeOnce": true
+    }
+  ],
+  "connections": {
+    "Run": {
+      "main": [
+        [
+          {
+            "node": "Read Invoices",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Invoices": {
+      "main": [
+        [
+          {
+            "node": "Read AuditLog",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read AuditLog": {
+      "main": [
+        [
+          {
+            "node": "Read KPI",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read KPI": {
+      "main": [
+        [
+          {
+            "node": "Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "saveDataSuccessExecution": "all",
+    "saveDataErrorExecution": "all",
+    "saveExecutionProgress": true,
+    "callerPolicy": "workflowsFromSameOwner",
+    "timezone": "Africa/Tunis"
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "tags": []
+}

@@ -1,0 +1,89 @@
+{
+  "id": "invResetTests001",
+  "name": "98_reset_test_data",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "03bc293f-0186-557c-86f6-364d1756da6b",
+      "name": "Run",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://sheets.googleapis.com/v4/spreadsheets/16wAF8N3rI9wtdrsu0j8uFgStno7MFf3qc9mjPG5exR4/values:batchClear",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{\"ranges\": [\"Invoices!A2:W\", \"AuditLog!A2:D\"]}",
+        "options": {
+          "timeout": 600000
+        },
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleSheetsOAuth2Api"
+      },
+      "id": "60b197da-773d-513c-a728-ac3d6e585a00",
+      "name": "Clear Invoices & AuditLog rows",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        220,
+        0
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "gsheetInvoice001",
+          "name": "Google Sheets (kharratok)"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "## 98 - Reset test data\nEmpties the **Invoices** and **AuditLog** tabs (row 2 and below) to restart a demo. Suppliers, purchase orders and KPI formulas are kept. Drive archive files are NOT deleted.",
+        "width": 460,
+        "height": 180,
+        "color": 3
+      },
+      "id": "e0c35ba9-c999-5a48-9714-91f347b84135",
+      "name": "Note reset",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        0,
+        -220
+      ]
+    }
+  ],
+  "connections": {
+    "Run": {
+      "main": [
+        [
+          {
+            "node": "Clear Invoices & AuditLog rows",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "saveDataSuccessExecution": "all",
+    "saveDataErrorExecution": "all",
+    "saveExecutionProgress": true,
+    "callerPolicy": "workflowsFromSameOwner",
+    "timezone": "Africa/Tunis"
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "tags": []
+}

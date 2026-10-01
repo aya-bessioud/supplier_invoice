@@ -1,0 +1,691 @@
+{
+  "name": "Invoice Automation - IDP (Gemini) + Rules + Approval + ERP",
+  "nodes": [
+    {
+      "parameters": {
+        "formTitle": "Invoice submission",
+        "formDescription": "Upload a supplier invoice (PDF or image). It is processed automatically: OCR + AI extraction, business-rule checks, approval if needed, ERP recording and archiving.",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "Invoice",
+              "fieldType": "file",
+              "multipleFiles": false,
+              "acceptFileTypes": ".pdf, .png, .jpg, .jpeg",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Supplier email",
+              "fieldType": "email",
+              "placeholder": "billing@supplier.com",
+              "requiredField": true
+            }
+          ]
+        },
+        "options": {
+          "path": "invoice-upload",
+          "buttonLabel": "Submit invoice",
+          "respondWithOptions": {
+            "values": {
+              "respondWith": "text",
+              "formSubmittedText": "Invoice received. It is now being processed automatically."
+            }
+          }
+        }
+      },
+      "id": "f207e53c-8eca-4683-a2cb-23b3f4efd5d7",
+      "name": "Invoice upload form",
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2.2,
+      "position": [
+        0,
+        300
+      ],
+      "webhookId": "5cd01dda-3ca7-46ee-a6a4-f9ed8388cfc0"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "10f85eed-3e29-4fb9-95b5-a42f2f002d33",
+              "name": "gemini_model",
+              "value": "gemini-2.5-flash",
+              "type": "string"
+            },
+            {
+              "id": "86537c32-674d-4f87-bf85-16daa3f37599",
+              "name": "gemini_base_url",
+              "value": "https://generativelanguage.googleapis.com",
+              "type": "string"
+            },
+            {
+              "id": "5c547db3-76b3-4f80-be3f-e80acf7fd13f",
+              "name": "approval_threshold",
+              "value": 2000,
+              "type": "number"
+            },
+            {
+              "id": "730161c1-f617-44c2-b2b5-e1cf47716759",
+              "name": "min_confidence",
+              "value": 0.8,
+              "type": "number"
+            },
+            {
+              "id": "2b067f1a-9fbc-494d-83b6-34738dba5080",
+              "name": "amount_tolerance",
+              "value": 0.01,
+              "type": "number"
+            },
+            {
+              "id": "dba18e90-ce9d-4c12-b0da-4e44bacb5156",
+              "name": "require_po",
+              "value": true,
+              "type": "boolean"
+            },
+            {
+              "id": "3ba33bb0-0df2-4968-a3d6-f93603bebfd7",
+              "name": "manager_email",
+              "value": "manager@yourcompany.com",
+              "type": "string"
+            },
+            {
+              "id": "5b3b02bd-821c-4311-aa05-35acee368c8d",
+              "name": "archive_dir",
+              "value": "/home/node/.n8n-files/archive",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "id": "ce6e54c6-e022-47a2-916e-4684f8ac1a6a",
+      "name": "Config",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        220,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Take the uploaded file from the form and build the Gemini request.\nconst cfg  = $('Config').first().json;\nconst form = $('Invoice upload form').first();\nconst bin  = form.binary || {};\nconst key  = Object.keys(bin)[0];\nif (!key) throw new Error('No file received from the form');\n\nconst buffer = await this.helpers.getBinaryDataBuffer(0, key);\nconst mime   = bin[key].mimeType || 'application/pdf';\n\nconst prompt = `You are an accounts-payable assistant. Read this supplier invoice (PDF or scan) and extract the fields.\nRules:\n- supplier_* fields describe the SELLER who issued the invoice, never the customer (\"Bill to\").\n- supplier_tax_id is the seller's tax ID (Tunisian \"matricule fiscal\", e.g. 1234567/A/M/000).\n- Dates in ISO format YYYY-MM-DD.\n- Amounts as plain numbers (no currency, no thousands separators). Copy the totals exactly as printed; do NOT recompute or correct them.\n- If a field is not on the invoice, return null.\n- confidence = your overall confidence (0 to 1) that all key fields were read correctly; list unclear fields in low_confidence_fields.`;\n\nconst S = (d) => ({ type: 'STRING', nullable: true, description: d });\nconst N = (d) => ({ type: 'NUMBER', nullable: true, description: d });\n\nconst gemini_body = {\n  contents: [{ role: 'user', parts: [\n    { text: prompt },\n    { inline_data: { mime_type: mime, data: buffer.toString('base64') } },\n  ]}],\n  generationConfig: {\n    temperature: 0,\n    responseMimeType: 'application/json',\n    responseSchema: {\n      type: 'OBJECT',\n      properties: {\n        invoice_number:  S('Invoice number'),\n        invoice_date:    S('YYYY-MM-DD'),\n        due_date:        S('YYYY-MM-DD'),\n        supplier_name:   S('Seller company name'),\n        supplier_tax_id: S('Seller matricule fiscal / tax ID'),\n        supplier_email:  S('Seller email'),\n        po_reference:    S('Purchase-order reference'),\n        iban:            S('Seller IBAN / RIB'),\n        currency:        S('Currency code, e.g. TND'),\n        net_amount:      N('Total excluding tax (HT)'),\n        vat_amount:      N('Total VAT (TVA)'),\n        gross_amount:    N('Total including tax (TTC)'),\n        confidence:      N('Overall confidence 0-1'),\n        low_confidence_fields: { type: 'ARRAY', items: { type: 'STRING' } },\n      },\n      required: ['invoice_number','invoice_date','supplier_name','supplier_tax_id',\n                 'net_amount','vat_amount','gross_amount','confidence'],\n    },\n  },\n};\n\nreturn [{ json: {\n  gemini_body,\n  gemini_url: `${cfg.gemini_base_url}/v1beta/models/${cfg.gemini_model}:generateContent`,\n  file_name: bin[key].fileName || 'invoice',\n  file_extension: (bin[key].fileExtension || 'pdf'),\n  supplier_email_form: form.json['Supplier email'] || null,\n  received_at: new Date().toISOString(),\n}}];"
+      },
+      "id": "39a63801-7650-4884-8030-d858cd1c2a8f",
+      "name": "Prepare Gemini request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.gemini_url }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.gemini_body) }}",
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "id": "e3c60696-4dea-41b4-aa58-a6e069630952",
+      "name": "Gemini: OCR + AI extraction",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        660,
+        300
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "geminiApiKey0001",
+          "name": "Gemini API key"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Read Gemini's JSON answer and prepare the database lookups.\nconst prep = $('Prepare Gemini request').first().json;\nconst res  = $input.first().json;\nconst text = res?.candidates?.[0]?.content?.parts?.map(p => p.text || '').join('') || '';\nlet inv;\ntry { inv = JSON.parse(text); }\ncatch (e) { throw new Error('Gemini did not return valid JSON: ' + text.slice(0, 300)); }\n\nconst num = (v) => {\n  if (v === null || v === undefined || v === '') return null;\n  const n = typeof v === 'number' ? v : parseFloat(String(v).replace(/\\s/g, '').replace(',', '.'));\n  return Number.isFinite(n) ? n : null;\n};\nconst str = (v) => (v === null || v === undefined || String(v).trim() === '' ? null : String(v).trim());\n\nconst invoice = {\n  invoice_number:  str(inv.invoice_number),\n  invoice_date:    str(inv.invoice_date),\n  due_date:        str(inv.due_date),\n  supplier_name:   str(inv.supplier_name),\n  supplier_tax_id: str(inv.supplier_tax_id),\n  supplier_email:  str(inv.supplier_email),\n  po_reference:    str(inv.po_reference),\n  iban:            str(inv.iban),\n  currency:        str(inv.currency) || 'TND',\n  net_amount:      num(inv.net_amount),\n  vat_amount:      num(inv.vat_amount),\n  gross_amount:    num(inv.gross_amount),\n  confidence:      num(inv.confidence) ?? 0,\n  low_confidence_fields: Array.isArray(inv.low_confidence_fields) ? inv.low_confidence_fields : [],\n};\n\n// SQL-safe literal (values come from the AI, so always escape them)\nconst q = (v) => (v === null || v === undefined) ? 'NULL' : \"'\" + String(v).replace(/'/g, \"''\") + \"'\";\n\nconst lookup_sql = `\nSELECT\n  (SELECT row_to_json(s) FROM suppliers s\n    WHERE s.tax_id = ${q(invoice.supplier_tax_id)} OR lower(s.name) = lower(${q(invoice.supplier_name)})\n    LIMIT 1) AS supplier,\n  (SELECT count(*)::int FROM invoices i\n    WHERE i.status = 'recorded' AND i.invoice_number = ${q(invoice.invoice_number)}\n      AND (i.supplier_tax_id = ${q(invoice.supplier_tax_id)} OR lower(i.supplier_name) = lower(${q(invoice.supplier_name)}))\n  ) AS duplicate_count,\n  (SELECT row_to_json(p) FROM purchase_orders p WHERE p.po_number = ${q(invoice.po_reference)} LIMIT 1) AS purchase_order;`;\n\nreturn [{ json: { invoice, lookup_sql, file_name: prep.file_name, received_at: prep.received_at } }];"
+      },
+      "id": "9e502067-0673-4626-9a12-a196ffa049a2",
+      "name": "Parse extraction",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        880,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "={{ $json.lookup_sql }}",
+        "options": {}
+      },
+      "id": "f957dcb1-2e31-48aa-becf-93a78d4e5e7c",
+      "name": "Lookup supplier, PO & duplicates",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        1100,
+        300
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "pgInvoicesDb01",
+          "name": "Postgres invoices_db"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Business rules = the single \"Valid data?\" decision of the TO-BE workflow.\nconst cfg    = $('Config').first().json;\nconst parsed = $('Parse extraction').first().json;\nconst prep   = $('Prepare Gemini request').first().json;\nconst inv    = parsed.invoice;\nconst db     = $input.first().json;           // supplier / duplicate_count / purchase_order\nconst reasons = [];\n\n// 1. Mandatory fields\nconst required = { invoice_number: 'invoice number', invoice_date: 'invoice date', supplier_name: 'supplier name',\n                   net_amount: 'net amount (HT)', vat_amount: 'VAT amount', gross_amount: 'gross amount (TTC)' };\nfor (const [k, label] of Object.entries(required)) if (inv[k] === null) reasons.push(`Missing ${label}`);\n\n// 2. AI confidence score >= threshold\nif (inv.confidence < cfg.min_confidence)\n  reasons.push(`Low AI confidence (${inv.confidence} < ${cfg.min_confidence})` +\n               (inv.low_confidence_fields.length ? ` on: ${inv.low_confidence_fields.join(', ')}` : ''));\n\n// 3. Net + VAT = Gross\nif (inv.net_amount !== null && inv.vat_amount !== null && inv.gross_amount !== null) {\n  const diff = Math.abs(inv.net_amount + inv.vat_amount - inv.gross_amount);\n  if (diff > cfg.amount_tolerance)\n    reasons.push(`Totals do not match: ${inv.net_amount} + ${inv.vat_amount} = ${(inv.net_amount + inv.vat_amount).toFixed(3)}, but invoice says ${inv.gross_amount}`);\n}\n\n// 4. Supplier exists in master data\nconst supplier = db.supplier || null;\nif (!supplier) reasons.push(`Unknown supplier: ${inv.supplier_name || '?'} (${inv.supplier_tax_id || 'no tax ID'})`);\n\n// 5. Duplicate invoice\nif ((db.duplicate_count || 0) > 0) reasons.push(`Duplicate: invoice ${inv.invoice_number} is already recorded`);\n\n// 6. Purchase order\nconst po = db.purchase_order || null;\nif (!inv.po_reference) {\n  if (cfg.require_po) reasons.push('Missing purchase-order reference');\n} else if (!po) {\n  reasons.push(`Unknown purchase order ${inv.po_reference}`);\n} else {\n  if (supplier && po.supplier_tax_id !== supplier.tax_id) reasons.push(`PO ${po.po_number} belongs to another supplier`);\n  if (po.status !== 'open') reasons.push(`PO ${po.po_number} is ${po.status}`);\n  if (inv.gross_amount !== null && inv.gross_amount > Number(po.amount_gross) + cfg.amount_tolerance)\n    reasons.push(`Amount ${inv.gross_amount} exceeds PO ${po.po_number} (${po.amount_gross})`);\n}\n\nconst valid = reasons.length === 0;\nconst approval_required = valid && inv.gross_amount > cfg.approval_threshold;\nconst supplier_email = prep.supplier_email_form || inv.supplier_email || supplier?.email || null;\n\n// SQL used if the invoice is sent back to the supplier\nconst q = (v) => (v === null || v === undefined) ? 'NULL' : \"'\" + String(v).replace(/'/g, \"''\") + \"'\";\nconst n = (v) => (typeof v === 'number' && Number.isFinite(v)) ? String(v) : 'NULL';\nconst d = (v) => (v && /^\\d{4}-\\d{2}-\\d{2}$/.test(v)) ? q(v) + '::date' : 'NULL';\nconst invoice_values = (status, route, why) => `(${q(inv.invoice_number)}, ${d(inv.invoice_date)}, ${d(inv.due_date)},\n  ${q(supplier?.name || inv.supplier_name)}, ${q(supplier?.tax_id || inv.supplier_tax_id)}, ${q(supplier_email)},\n  ${q(inv.po_reference)}, ${q(inv.iban)}, ${q(inv.currency)},\n  ${n(inv.net_amount)}, ${n(inv.vat_amount)}, ${n(inv.gross_amount)}, ${n(inv.confidence)},\n  ${q(status)}, ${q(route)}, ${q(why)}, ${q(parsed.file_name)}, ${q(parsed.received_at)}::timestamptz)`;\nconst COLS = `(invoice_number, invoice_date, due_date, supplier_name, supplier_tax_id, supplier_email,\n  po_reference, iban, currency, net_amount, vat_amount, gross_amount, ai_confidence,\n  status, route, rejection_reasons, file_name, received_at)`;\nconst sqlFor = (status, route, why, event) => `\nWITH ins AS (INSERT INTO invoices ${COLS} VALUES ${invoice_values(status, route, why)} RETURNING id, status, route)\nINSERT INTO audit_log (invoice_id, event, details)\nSELECT id, ${q(event)}, ${q(why)} FROM ins\nRETURNING invoice_id, event;`;\n\nreturn [{ json: {\n  valid, approval_required, reasons,\n  reasons_text: reasons.join(' | '),\n  invoice: inv, supplier, purchase_order: po, supplier_email,\n  reject_sql: sqlFor('rejected_invalid', 'supplier_correction', reasons.join(' | '), 'SENT_BACK_TO_SUPPLIER'),\n  manager_reject_sql: sqlFor('rejected_manager', 'manager_rejected', 'Rejected by approver', 'REJECTED_BY_MANAGER'),\n  _cols: COLS,\n}}];"
+      },
+      "id": "591e80f0-726b-47ed-a442-a3713f5f56d7",
+      "name": "Business rules check",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1320,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "965ae89b-e504-4606-9ea9-eea9150eb72a",
+              "leftValue": "={{ $json.valid }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "80bfdaf2-685e-4dfb-a485-ca65e901cc12",
+      "name": "Valid data?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1540,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "={{ $('Business rules check').first().json.reject_sql }}",
+        "options": {}
+      },
+      "id": "6c8ae43d-3a87-499e-a03c-c1ea8acf2015",
+      "name": "Save: sent back to supplier",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        1760,
+        520
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "pgInvoicesDb01",
+          "name": "Postgres invoices_db"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $('Business rules check').first().json.supplier_email }}",
+        "subject": "=Invoice {{ $('Business rules check').first().json.invoice.invoice_number || '' }}: correction needed",
+        "emailType": "text",
+        "message": "=Hello,\n\nWe could not process your invoice {{ $('Business rules check').first().json.invoice.invoice_number || '' }} for the following reason(s):\n\n- {{ $('Business rules check').first().json.reasons.join('\\n- ') }}\n\nPlease send a corrected invoice through the same form.\n\nAccounts Payable",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "id": "224bddcf-78c9-435a-8e93-32ed29b30981",
+      "name": "Email supplier: correction needed",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        1980,
+        520
+      ],
+      "webhookId": "ef61fa0f-e1ba-4f41-a636-26533fcd903e",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "gmailAccount0001",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "6aca70e0-a9d8-4803-96e7-f5238edb2e64",
+              "leftValue": "={{ $json.approval_required }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "46086c15-5d06-48b5-af3d-20773ac334e4",
+      "name": "Approval required?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1760,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "sendAndWait",
+        "sendTo": "={{ $('Config').first().json.manager_email }}",
+        "subject": "=Approval needed: invoice {{ $json.invoice.invoice_number }} ({{ $json.invoice.gross_amount }} {{ $json.invoice.currency }})",
+        "message": "=Invoice {{ $json.invoice.invoice_number }} from {{ $json.supplier.name }} is above the approval threshold ({{ $('Config').first().json.approval_threshold }} TND).\n\nAmount: {{ $json.invoice.net_amount }} + VAT {{ $json.invoice.vat_amount }} = {{ $json.invoice.gross_amount }} {{ $json.invoice.currency }}\nPurchase order: {{ $json.invoice.po_reference }}\nInvoice date: {{ $json.invoice.invoice_date }} - due {{ $json.invoice.due_date }}\n\nAll automatic checks passed. Do you approve this invoice?",
+        "approvalOptions": {
+          "values": {
+            "approvalType": "double",
+            "approveLabel": "Approve",
+            "disapproveLabel": "Reject"
+          }
+        },
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "id": "b6f0b15b-efcf-48de-bfa6-773032b4830e",
+      "name": "Approval workflow (manager)",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        1980,
+        80
+      ],
+      "webhookId": "68e13060-a252-46f1-89e6-153461e6c82c",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "gmailAccount0001",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "f35fb568-4a2d-43b4-8d59-a9a19f0063f5",
+              "leftValue": "={{ $json.data.approved }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "7c826bc8-ec2c-43f3-8a2e-9f680700b8d9",
+      "name": "Approved?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2200,
+        80
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "={{ $('Business rules check').first().json.manager_reject_sql }}",
+        "options": {}
+      },
+      "id": "6d458aac-777b-4350-89ad-54fc6a12e2fb",
+      "name": "Save: rejected by manager",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        2420,
+        -60
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "pgInvoicesDb01",
+          "name": "Postgres invoices_db"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Prepare the ERP record: route (auto / approved), archive path, SQL insert.\nconst cfg   = $('Config').first().json;\nconst r     = $('Business rules check').first().json;\nconst prep  = $('Prepare Gemini request').first().json;\nconst parsed = $('Parse extraction').first().json;\nconst inv   = r.invoice;\nconst route = $('Approved?').isExecuted ? 'approved' : 'auto';\n\nconst safe = (s) => String(s || 'unknown').replace(/[^A-Za-z0-9._-]+/g, '_');\nconst archive_path = `${cfg.archive_dir}/${new Date().toISOString().slice(0,10)}_${safe(r.supplier?.name)}_${safe(inv.invoice_number)}.${prep.file_extension}`;\n\nconst q = (v) => (v === null || v === undefined) ? 'NULL' : \"'\" + String(v).replace(/'/g, \"''\") + \"'\";\nconst n = (v) => (typeof v === 'number' && Number.isFinite(v)) ? String(v) : 'NULL';\nconst d = (v) => (v && /^\\d{4}-\\d{2}-\\d{2}$/.test(v)) ? q(v) + '::date' : 'NULL';\n\nconst insert_sql = `\nWITH ins AS (\n  INSERT INTO invoices ${r._cols.replace('received_at)', 'received_at, archive_path)')}\n  VALUES (${q(inv.invoice_number)}, ${d(inv.invoice_date)}, ${d(inv.due_date)},\n    ${q(r.supplier.name)}, ${q(r.supplier.tax_id)}, ${q(r.supplier_email)},\n    ${q(inv.po_reference)}, ${q(inv.iban || r.supplier.iban)}, ${q(inv.currency)},\n    ${n(inv.net_amount)}, ${n(inv.vat_amount)}, ${n(inv.gross_amount)}, ${n(inv.confidence)},\n    'recorded', ${q(route)}, NULL, ${q(parsed.file_name)}, ${q(parsed.received_at)}::timestamptz, ${q(archive_path)})\n  RETURNING id, invoice_number, gross_amount, route\n), log AS (\n  INSERT INTO audit_log (invoice_id, event, details)\n  SELECT id, 'RECORDED_IN_ERP', 'route=' || route || ', archived at ' || ${q(archive_path)} FROM ins\n)\nSELECT * FROM ins;`;\n\n// keep the original file for the archive step\nconst form = $('Invoice upload form').first().binary || {};\nconst key  = Object.keys(form)[0];\nreturn [{ json: { insert_sql, archive_path, route, invoice_number: inv.invoice_number },\n          binary: key ? { invoice: form[key] } : {} }];"
+      },
+      "id": "9b1b7ec1-9ea7-4a86-89cc-3d8a222db21c",
+      "name": "Build ERP record",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2420,
+        220
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "write",
+        "fileName": "={{ $json.archive_path }}",
+        "dataPropertyName": "invoice",
+        "options": {}
+      },
+      "id": "d730a064-df2a-41a5-bdf0-736035e5a126",
+      "name": "Archiving",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        2640,
+        220
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "={{ $('Build ERP record').first().json.insert_sql }}",
+        "options": {}
+      },
+      "id": "3369c842-c04f-4417-ab06-a4e320f77669",
+      "name": "ERP integration (record invoice)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        2860,
+        220
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "pgInvoicesDb01",
+          "name": "Postgres invoices_db"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT * FROM kpi_summary;",
+        "options": {}
+      },
+      "id": "10248f2a-25d5-4152-8382-06384926f3be",
+      "name": "Payment & KPI reporting",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        3080,
+        220
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "pgInvoicesDb01",
+          "name": "Postgres invoices_db"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "## Invoice automation (TO-BE)\n1. **Reception**: n8n form (PDF / image)\n2. **IDP / OCR + AI**: Gemini reads the file and returns structured JSON\n3. **AI analysis & check**: confidence score + business rules (totals, supplier, PO, duplicate)\n4. **Valid data?** No -> supplier correction email\n5. **Approval required?** amount > threshold -> manager approves by email\n6. **ERP integration**, **archiving**, **KPI reporting** (PostgreSQL)\n\nSettings: edit the **Config** node.",
+        "height": 300,
+        "width": 460,
+        "color": 5
+      },
+      "id": "60d9e98f-9020-4351-909d-a967743656b0",
+      "name": "Sticky Note",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -40,
+        -80
+      ]
+    }
+  ],
+  "connections": {
+    "Invoice upload form": {
+      "main": [
+        [
+          {
+            "node": "Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Config": {
+      "main": [
+        [
+          {
+            "node": "Prepare Gemini request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Gemini request": {
+      "main": [
+        [
+          {
+            "node": "Gemini: OCR + AI extraction",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gemini: OCR + AI extraction": {
+      "main": [
+        [
+          {
+            "node": "Parse extraction",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse extraction": {
+      "main": [
+        [
+          {
+            "node": "Lookup supplier, PO & duplicates",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Lookup supplier, PO & duplicates": {
+      "main": [
+        [
+          {
+            "node": "Business rules check",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Business rules check": {
+      "main": [
+        [
+          {
+            "node": "Valid data?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Valid data?": {
+      "main": [
+        [
+          {
+            "node": "Approval required?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Save: sent back to supplier",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save: sent back to supplier": {
+      "main": [
+        [
+          {
+            "node": "Email supplier: correction needed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Approval required?": {
+      "main": [
+        [
+          {
+            "node": "Approval workflow (manager)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build ERP record",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Approval workflow (manager)": {
+      "main": [
+        [
+          {
+            "node": "Approved?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Approved?": {
+      "main": [
+        [
+          {
+            "node": "Build ERP record",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Save: rejected by manager",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build ERP record": {
+      "main": [
+        [
+          {
+            "node": "Archiving",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Archiving": {
+      "main": [
+        [
+          {
+            "node": "ERP integration (record invoice)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ERP integration (record invoice)": {
+      "main": [
+        [
+          {
+            "node": "Payment & KPI reporting",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "tags": []
+}
