@@ -1,0 +1,11 @@
+# Binary files: never convert line endings (otherwise PDFs can be corrupted on Windows checkouts)
+*.pdf   binary
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.zip   binary
+*.docx  binary
+
+# Windows scripts keep CRLF, everything else text is normalised by Git
+*.cmd   text eol=crlf
+*.ps1   text eol=crlf
